@@ -13,8 +13,8 @@ If you want to use a different technology, this starterkit still provides you wi
 To install the starter kit, do the following:
 
 ```shell
-  $ git clone https://github.com/FastAndFurious/AkkaStarterKit
-  $ cd AkkaStarterKit
+  $ git clone git@github.com:marcelamsler/FasterThanLight.git
+  $ cd FasterThanLight
   $ mvn clean install
   $ java -jar target/fnf.starterkit-1.0-SNAPSHOT.jar  <options>
 ```
