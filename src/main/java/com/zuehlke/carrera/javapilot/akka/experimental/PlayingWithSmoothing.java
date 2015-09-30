@@ -4,11 +4,15 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.model.TrackPart;
+import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.services.ExtendedFloatingHistory;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.apache.commons.lang.StringUtils;
+
+import java.util.ArrayList;
 
 
 public class PlayingWithSmoothing extends UntypedActor {
@@ -21,18 +25,19 @@ public class PlayingWithSmoothing extends UntypedActor {
     private int smoothing = 160;
     private double lastTimestamp = 0.0;
 
-    private static final int TRACK_PART_LENGTH = 50;
     private static final int TRACK_PART_MIN_LENGTH = 5;
     private static final int LINE_TOP_THRESHOLD = 200;
-    private static final int DIRECTION_CHANGED_COUNT = 5;
+
+    private ArrayList<TrackPart> trackParts = new ArrayList<>();
+    private TrackPart currentTrackPart = new TrackPart();
+    private int directionClearanceCount = 0;
 
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
-    private FloatingHistory actualTrackPart = new FloatingHistory(TRACK_PART_LENGTH);
+    private FloatingHistory actualTrackPart = new FloatingHistory(TRACK_PART_MIN_LENGTH);
 
-    private int countActualPart;
-    private  int lastValue = 0;
+    private int lastValue = 1337;
 
     public PlayingWithSmoothing(ActorRef pilotActor) {
         this.marco = pilotActor;
@@ -61,13 +66,14 @@ public class PlayingWithSmoothing extends UntypedActor {
         double smoothValue = lowPassFilter(gz, message.getTimeStamp());
         double smoothDiff = previousSmoothed - smoothValue;
 
-        if (directionChanged(smoothValue)) {
+        boolean directionChanged = directionChanged(smoothValue);
+        if (directionChanged) {
             show((int) smoothValue, "-");
         } else {
             show((int) smoothValue);
         }
 
-        evaluateTrackType(smoothValue, directionChanged(smoothValue));
+        evaluateTrackType(smoothValue, directionChanged);
 
         gzDiffHistory.shift(smoothDiff);
 
@@ -97,21 +103,35 @@ public class PlayingWithSmoothing extends UntypedActor {
     }
 
     private void evaluateTrackType(double smoothValue, boolean forceEvaluation) {
-        actualTrackPart.shift(smoothValue);
-        countActualPart++;
-
-        if (countActualPart == TRACK_PART_LENGTH || (forceEvaluation && countActualPart > TRACK_PART_MIN_LENGTH) ) {
-            double currentMean = actualTrackPart.currentMean();
-            if (currentMean > -LINE_TOP_THRESHOLD && currentMean < LINE_TOP_THRESHOLD) {
-                System.out.println("That was a line");
-            } else if (currentMean > LINE_TOP_THRESHOLD) {
-                System.out.println("That was a right curve");
-            } else if (currentMean < -LINE_TOP_THRESHOLD) {
-                System.out.println("That was a left curve");
+        if(forceEvaluation){
+            directionClearanceCount = 0;
+            if(currentTrackPart.getSensorValues().size() >= TRACK_PART_MIN_LENGTH){
+                TrackType type = decideTrackPartType(currentTrackPart.getMean());
+                currentTrackPart.setType(type);
+                currentTrackPart = new TrackPart();
+                trackParts.add(currentTrackPart);
             }
-            countActualPart = 0;
-            actualTrackPart = new FloatingHistory(50);
+            actualTrackPart = new FloatingHistory(TRACK_PART_MIN_LENGTH);
         }
+        actualTrackPart.shift(smoothValue);
+        currentTrackPart.pushSensorValue(smoothValue);
+        directionClearanceCount++;
+
+    }
+
+    public TrackType decideTrackPartType(double mean){
+        if (mean > -LINE_TOP_THRESHOLD && mean < LINE_TOP_THRESHOLD) {
+            System.out.println("That is a line");
+            return TrackType.STRAIGHT;
+        }
+        else if (mean > LINE_TOP_THRESHOLD) {
+            System.out.println("That is a right curve");
+            return TrackType.RIGHT;
+        } else if (mean < -LINE_TOP_THRESHOLD) {
+            System.out.println("That is a left curve");
+            return TrackType.LEFT;
+        }
+        return TrackType.UNKNOWN;
     }
 
     public static Props props(ActorRef pilotActor) {
