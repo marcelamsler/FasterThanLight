@@ -16,18 +16,18 @@ import java.util.stream.Collectors;
 
 public class PlayingWithSmoothing extends UntypedActor {
     private final ActorRef marco;
-
     private int currentPower = 20;
+
     private int measuringSpeed = 110;
-
     private double smoothed = 0.0;
-    private int smoothing = 160;
 
+    private int smoothing = 160;
     private double lastTimestamp = 0.0;
 
     private static final int TRACK_PART_LENGTH = 50;
+    private static final int TRACK_PART_MIN_LENGTH = 10;
     private static final int LINE_TOP_THRESHOLD = 200;
-    private static final int DIRECTION_CHANGED_COUNT = 10;
+    private static final int DIRECTION_CHANGED_COUNT = 5;
 
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
@@ -102,7 +102,7 @@ public class PlayingWithSmoothing extends UntypedActor {
         actualTrackPart.shift(smoothValue);
         countActualPart++;
 
-        if (countActualPart == TRACK_PART_LENGTH || forceEvaluation) {
+        if (countActualPart == TRACK_PART_LENGTH || (forceEvaluation && countActualPart > TRACK_PART_MIN_LENGTH) ) {
             double currentMean = actualTrackPart.currentMean();
             if (currentMean > -LINE_TOP_THRESHOLD && currentMean < LINE_TOP_THRESHOLD) {
                 System.out.println("That was a line");
@@ -112,6 +112,7 @@ public class PlayingWithSmoothing extends UntypedActor {
                 System.out.println("That was a left curve");
             }
             countActualPart = 0;
+            actualTrackPart = new FloatingHistory(50);
         }
     }
 
