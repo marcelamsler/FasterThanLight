@@ -25,7 +25,7 @@ public class PlayingWithSmoothing extends UntypedActor {
     private int smoothing = 160;
     private double lastTimestamp = 0.0;
 
-    private static final int TRACK_PART_MIN_LENGTH = 5;
+    private static final int TRACK_PART_MIN_LENGTH = 3;
     private static final int LINE_TOP_THRESHOLD = 200;
 
     private ArrayList<TrackPart> trackParts = new ArrayList<>();
@@ -61,10 +61,8 @@ public class PlayingWithSmoothing extends UntypedActor {
             return;
         }
         double gz = message.getG()[2];
-        double previousSmoothed = smoothed;
 
         double smoothValue = lowPassFilter(gz, message.getTimeStamp());
-        double smoothDiff = previousSmoothed - smoothValue;
 
         boolean directionChanged = directionChanged(smoothValue);
         if (directionChanged) {
@@ -75,7 +73,6 @@ public class PlayingWithSmoothing extends UntypedActor {
 
         evaluateTrackType(smoothValue, directionChanged);
 
-        gzDiffHistory.shift(smoothDiff);
 
         if (iAmStillStanding()) {
             increase(5);
@@ -121,14 +118,14 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     public TrackType decideTrackPartType(double mean){
         if (mean > -LINE_TOP_THRESHOLD && mean < LINE_TOP_THRESHOLD) {
-            System.out.println("That is a line");
+            System.out.println("That was a line");
             return TrackType.STRAIGHT;
         }
         else if (mean > LINE_TOP_THRESHOLD) {
-            System.out.println("That is a right curve");
+            System.out.println("That was a right curve");
             return TrackType.RIGHT;
         } else if (mean < -LINE_TOP_THRESHOLD) {
-            System.out.println("That is a left curve");
+            System.out.println("That was a left curve");
             return TrackType.LEFT;
         }
         return TrackType.UNKNOWN;
