@@ -9,6 +9,9 @@ import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.apache.commons.lang.StringUtils;
 
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+
 
 public class PlayingWithSmoothing extends UntypedActor {
     private final ActorRef marco;
@@ -21,7 +24,17 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     private double lastTimestamp = 0.0;
 
+    private static final int TRACK_PART_LENGTH = 10;
+    private static final int LINE_TOP_THRESHOLD = 200;
+    private static final int DIRECTION_CHANGED_COUNT = 5;
+
+
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
+
+    private FloatingHistory actualTrackPart = new FloatingHistory(TRACK_PART_LENGTH);
+    private ArrayList<Boolean> directionChangedDecisionArray = new ArrayList<>();
+
+    private int countActualPart;
 
     public PlayingWithSmoothing(ActorRef pilotActor) {
         this.marco = pilotActor;
@@ -49,15 +62,19 @@ public class PlayingWithSmoothing extends UntypedActor {
 
         double smoothValue = lowPassFilter(gz,message.getTimeStamp());
         double smoothDiff = previousSmoothed-smoothValue;
-        if(Math.abs(smoothDiff- gzDiffHistory.currentMean()) > 100){
+
+        boolean directionChanged = Math.abs(smoothDiff- gzDiffHistory.currentMean()) > 100;
+
+        if(directionChanged){
             show ((int)smoothValue,"-");
         }
         else{
             show ((int)smoothValue);
         }
 
-        gzDiffHistory.shift(smoothDiff);
+        buildTrackPart(smoothValue, directionChanged);
 
+        gzDiffHistory.shift(smoothDiff);
 
         if(iAmStillStanding()){
             increase(5);
@@ -66,6 +83,38 @@ public class PlayingWithSmoothing extends UntypedActor {
         else{
             currentPower = measuringSpeed;
             marco.tell(new PowerAction(currentPower), getSelf());
+        }
+    }
+
+    private void buildTrackPart(double smoothValue, boolean directionChanged) {
+        directionChangedDecisionArray.add(directionChanged);
+        boolean forceEvaluation = false;
+
+        if (directionChangedDecisionArray.size() == DIRECTION_CHANGED_COUNT) {
+            boolean MeanDirectionChanged = directionChangedDecisionArray.stream().filter((d) -> d).collect(Collectors.toList()).size() > 3;
+            if(MeanDirectionChanged) {
+                directionChangedDecisionArray = new ArrayList<>();
+                forceEvaluation = true;
+            }
+            evaluateTrackType(smoothValue, forceEvaluation);
+
+        }
+    }
+
+    private void evaluateTrackType(double smoothValue, boolean forceEvaluation) {
+        actualTrackPart.shift(smoothValue);
+        countActualPart++;
+
+        if(countActualPart == TRACK_PART_LENGTH || forceEvaluation) {
+            double currentMean = actualTrackPart.currentMean();
+            if (currentMean > -LINE_TOP_THRESHOLD && currentMean < LINE_TOP_THRESHOLD) {
+                System.out.println("That was a line");
+            } else if (currentMean > LINE_TOP_THRESHOLD) {
+                System.out.println("That was a right curve");
+            } else if (currentMean < -LINE_TOP_THRESHOLD) {
+                System.out.println("That was a left curve");
+            }
+            countActualPart = 0;
         }
     }
 
@@ -97,6 +146,10 @@ public class PlayingWithSmoothing extends UntypedActor {
     private void show(int gyr2,String symbol) {
         int scale = 120 * (gyr2 - (-10000) ) / 20000;
         System.out.println(StringUtils.repeat(" ", scale) + symbol);
+    }
+    private void show(int gyr2, int value) {
+        int scale = 120 * (gyr2 - (-10000) ) / 20000;
+        System.out.println(StringUtils.repeat(" ", scale) + value);
     }
 
     private boolean iAmStillStanding() {
