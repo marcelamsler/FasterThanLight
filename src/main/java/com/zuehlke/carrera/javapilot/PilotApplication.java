@@ -19,6 +19,8 @@ import com.zuehlke.carrera.relayapi.messages.TrainingResponse;
 import com.zuehlke.carrera.simulator.config.SimulatorProperties;
 import com.zuehlke.carrera.simulator.model.RaceTrackSimulatorSystem;
 import org.apache.commons.cli.*;
+import org.apache.log4j.spi.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -34,6 +36,9 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Entrypoint for the application
+ */
 @Configuration
 @ComponentScan
 @EnableAutoConfiguration
@@ -65,18 +70,22 @@ public class PilotApplication implements CommandLineRunner{
         both
     };
 
+    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(PilotApplication.class);
+
     /**
      * Primary entry point of Carrera Simulator
      * @param args runtime arguments
      */
     public static void main(String[] args) {
-
         SpringApplication.run(PilotApplication.class, args);
-
     }
+
 
     @Override
     public void run(String... args) throws Exception {
+
+        LOGGER.info("Start application.");
+        LOGGER.info("Pilot properties {}", pilotService.toString());
 
         Options options = new Options();
         options.addOption("i", true, "Team ID");
@@ -119,6 +128,7 @@ public class PilotApplication implements CommandLineRunner{
         }
 
         connectWithProtocol ( protocol, function );
+
 
         String url = relayTrainingUrl + "/" + design;
         boolean recordData = cmd.hasOption("r");
