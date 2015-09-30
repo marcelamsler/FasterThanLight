@@ -10,9 +10,6 @@ import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.apache.commons.lang.StringUtils;
 
-import java.util.ArrayList;
-import java.util.stream.Collectors;
-
 
 public class PlayingWithSmoothing extends UntypedActor {
     private final ActorRef marco;
@@ -25,7 +22,7 @@ public class PlayingWithSmoothing extends UntypedActor {
     private double lastTimestamp = 0.0;
 
     private static final int TRACK_PART_LENGTH = 50;
-    private static final int TRACK_PART_MIN_LENGTH = 10;
+    private static final int TRACK_PART_MIN_LENGTH = 5;
     private static final int LINE_TOP_THRESHOLD = 200;
     private static final int DIRECTION_CHANGED_COUNT = 5;
 
@@ -33,9 +30,9 @@ public class PlayingWithSmoothing extends UntypedActor {
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
     private FloatingHistory actualTrackPart = new FloatingHistory(TRACK_PART_LENGTH);
-    private FloatingHistory directionChangedHistory = new ExtendedFloatingHistory(DIRECTION_CHANGED_COUNT, 0);
 
     private int countActualPart;
+    private  int lastValue = 0;
 
     public PlayingWithSmoothing(ActorRef pilotActor) {
         this.marco = pilotActor;
@@ -64,16 +61,13 @@ public class PlayingWithSmoothing extends UntypedActor {
         double smoothValue = lowPassFilter(gz, message.getTimeStamp());
         double smoothDiff = previousSmoothed - smoothValue;
 
-        boolean directionChanged = Math.abs(smoothDiff - gzDiffHistory.currentMean()) > 100;
-
-        if (directionChanged) {
+        if (directionChanged(smoothValue)) {
             show((int) smoothValue, "-");
-            buildTrackPart(smoothValue, 1);
         } else {
             show((int) smoothValue);
-            buildTrackPart(smoothValue, 0);
         }
 
+        evaluateTrackType(smoothValue, directionChanged(smoothValue));
 
         gzDiffHistory.shift(smoothDiff);
 
@@ -86,16 +80,20 @@ public class PlayingWithSmoothing extends UntypedActor {
         }
     }
 
-    private void buildTrackPart(double smoothValue, int directionChanged) {
-        directionChangedHistory.shift(directionChanged);
-        boolean forceEvaluation = false;
-
-        boolean MeanDirectionChanged = directionChangedHistory.currentMean() > 0.5;
-        if (MeanDirectionChanged) {
-            directionChangedHistory = new ExtendedFloatingHistory(DIRECTION_CHANGED_COUNT, 0);
-            forceEvaluation = true;
+    private boolean directionChanged(double smoothValue) {
+        boolean directionChanged = false;
+        if (smoothValue > -LINE_TOP_THRESHOLD && smoothValue < LINE_TOP_THRESHOLD) {
+            directionChanged = lastValue != 0;
+            lastValue = 0;
+        } else if (smoothValue > LINE_TOP_THRESHOLD) {
+            directionChanged = lastValue != 1;
+            lastValue = 1;
+        } else if (smoothValue < -LINE_TOP_THRESHOLD) {
+            directionChanged = lastValue != -1;
+            lastValue = -1;
         }
-        evaluateTrackType(smoothValue, forceEvaluation);
+
+        return directionChanged;
     }
 
     private void evaluateTrackType(double smoothValue, boolean forceEvaluation) {
