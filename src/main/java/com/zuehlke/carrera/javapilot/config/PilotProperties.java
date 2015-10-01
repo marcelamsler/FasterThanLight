@@ -40,4 +40,14 @@ public class PilotProperties {
     public void setRabbitUrl(String rabbitUrl) {
         this.rabbitUrl = rabbitUrl;
     }
+
+    @Override
+    public String toString() {
+        return "PilotProperties{" +
+                "relayUrl='" + relayUrl + '\'' +
+                ", name='" + name + '\'' +
+                ", accessCode='" + accessCode + '\'' +
+                ", rabbitUrl='" + rabbitUrl + '\'' +
+                '}';
+    }
 }
