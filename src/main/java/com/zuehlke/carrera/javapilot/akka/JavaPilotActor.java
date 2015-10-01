@@ -29,7 +29,6 @@ public class JavaPilotActor extends UntypedActor {
     private PilotToRelayConnection relayConnection;
 
     public JavaPilotActor(PilotProperties properties) {
-
         this.properties = properties;
 
         createTopology ();
