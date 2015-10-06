@@ -160,7 +160,7 @@ public class PilotApplication implements CommandLineRunner{
 
 
     private void connectPilotWithRabbit(ActorRef pilot) {
-
+        LOGGER.info("=> Connect pilot with rabbit");
         Client client = new RabbitClient();
         client.connect(settings.getRabbitUrl());
         Serializer serializer = new JacksonSerializer();
@@ -182,6 +182,7 @@ public class PilotApplication implements CommandLineRunner{
     }
 
     private void connectSimulatorWithRabbit (RaceTrackSimulatorSystem system ) {
+        LOGGER.info("=> Connect simulator with rabbit");
 
         Client client = new RabbitClient();
         client.connect(settings.getRabbitUrl());

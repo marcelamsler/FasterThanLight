@@ -8,6 +8,7 @@ import com.zuehlke.carrera.javapilot.akka.experimental.ThresholdConfiguration;
 import com.zuehlke.carrera.javapilot.config.PilotProperties;
 import com.zuehlke.carrera.javapilot.services.EndpointAnnouncement;
 import com.zuehlke.carrera.javapilot.services.PilotToRelayConnection;
+import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.relayapi.messages.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,7 @@ public class JavaPilotActor extends UntypedActor {
 
     private final Logger LOGGER = LoggerFactory.getLogger(JavaPilotActor.class);
     private final PilotProperties properties;
+    private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef sensorEntryPoint;
     private ActorRef velocityEntryPoint;
@@ -28,8 +30,9 @@ public class JavaPilotActor extends UntypedActor {
 
     private PilotToRelayConnection relayConnection;
 
-    public JavaPilotActor(PilotProperties properties) {
+    public JavaPilotActor(PilotProperties properties, PilotDataEventSender pilotDataEventSender) {
         this.properties = properties;
+        this.pilotDataEventSender = pilotDataEventSender;
 
         createTopology ();
     }
@@ -43,13 +46,13 @@ public class JavaPilotActor extends UntypedActor {
     }
 
 
-    public static Props props ( PilotProperties properties ) {
+    public static Props props(PilotProperties properties, PilotDataEventSender pilotDataEventSender) {
         return Props.create(new Creator<JavaPilotActor>() {
             private static final long serialVersionUID = 1L;
 
             @Override
             public JavaPilotActor create() throws Exception {
-                return new JavaPilotActor( properties );
+                return new JavaPilotActor( properties, pilotDataEventSender );
             }
         });
     }
@@ -81,13 +84,13 @@ public class JavaPilotActor extends UntypedActor {
             } else if (message instanceof PowerAction) {
                 handlePowerAction(((PowerAction) message).getPowerValue());
 
-            } else if (message instanceof PenaltyMessage ) {
-                handlePenaltyMessage ((PenaltyMessage) message );
+            } else if (message instanceof PenaltyMessage) {
+                handlePenaltyMessage((PenaltyMessage) message);
 
-            } else if ( message instanceof ThresholdConfiguration) {
+            } else if (message instanceof ThresholdConfiguration) {
                 sensorEntryPoint.forward(message, getContext());
 
-            } else if ( message instanceof RoundTimeMessage ) {
+            } else if (message instanceof RoundTimeMessage) {
                 handleRoundTime((RoundTimeMessage) message);
 
             } else if (message instanceof String) {
@@ -101,7 +104,7 @@ public class JavaPilotActor extends UntypedActor {
             } else {
                 unhandled(message);
             }
-        } catch ( Exception e ) {
+        } catch (Exception e) {
             LOGGER.error("Caught exception: " + e.getMessage());
             e.printStackTrace();
         }
@@ -136,6 +139,9 @@ public class JavaPilotActor extends UntypedActor {
         if ( message.getVelocity() == -999 ) {
             handleSample(message);
         } else {
+            // send a copy of the event
+            pilotDataEventSender.sendToAll(message);
+
             velocityEntryPoint.forward(message, getContext());
         }
     }
@@ -144,6 +150,9 @@ public class JavaPilotActor extends UntypedActor {
         if ( isSample ( message ) ) {
             handleSample(message);
         } else {
+            // send a copy of the event
+            pilotDataEventSender.sendToAll(message);
+
             sensorEntryPoint.forward(message, getContext());
         }
     }

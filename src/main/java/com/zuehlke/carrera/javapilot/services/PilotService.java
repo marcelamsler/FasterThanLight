@@ -4,6 +4,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import com.zuehlke.carrera.javapilot.akka.JavaPilotActor;
 import com.zuehlke.carrera.javapilot.config.PilotProperties;
+import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,11 +31,12 @@ public class PilotService {
 
     @Autowired
     public PilotService(PilotProperties settings, EndpointService endpointService,
-                        SimulatorService simulatorService ){
+                        SimulatorService simulatorService,
+                        PilotDataEventSender pilotDataEventSender){
         this.settings = settings;
         this.endPointUrl = endpointService.getHttpEndpoint();
         system = ActorSystem.create(settings.getName());
-        pilotActor = system.actorOf(JavaPilotActor.props(settings));
+        pilotActor = system.actorOf(JavaPilotActor.props(settings, pilotDataEventSender));
 
         // Simulator learns about the pilot
         simulatorService.registerPilot(pilotActor);

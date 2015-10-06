@@ -5,6 +5,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import com.zuehlke.carrera.javapilot.config.PilotProperties;
 import com.zuehlke.carrera.javapilot.services.PilotToRelayConnection;
+import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.relayapi.messages.PowerControl;
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -24,7 +25,7 @@ public class KobayashiActorTest {
 
         ActorSystem system = ActorSystem.create("testSystem");
 
-        ActorRef pilot = system.actorOf(JavaPilotActor.props(properties));
+        ActorRef pilot = system.actorOf(JavaPilotActor.props(properties, new PilotDataEventSender()));
 
         Thread.sleep(1000);
 
