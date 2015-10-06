@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/")
-    public class RestApiController {
+public class RestApiController {
 
     public PilotService service;
 

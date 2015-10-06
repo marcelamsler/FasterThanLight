@@ -100,6 +100,7 @@ public class ConfirmDontLoseMessages {
             } catch (Throwable e) {
                 System.out.println("foobar :(");
                 System.out.print(e);
+                e.printStackTrace();
             }
         }
     }
