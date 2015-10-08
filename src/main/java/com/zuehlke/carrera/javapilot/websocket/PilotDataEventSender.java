@@ -59,6 +59,10 @@ public class PilotDataEventSender extends TextWebSocketHandler {
         sendMessage(message, EventMessageType.SensorEvent);
     }
 
+    public void sendToAll(TrackPartChangedData trackPartChangedData) {
+        sendMessage(trackPartChangedData, EventMessageType.TrackPartChanged);
+    }
+
     private void sendMessage(Object genericMessage, EventMessageType eventMessageType) {
         try {
             Gson gson = new Gson();

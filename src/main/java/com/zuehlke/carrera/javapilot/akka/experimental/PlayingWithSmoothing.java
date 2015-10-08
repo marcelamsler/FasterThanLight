@@ -8,6 +8,7 @@ import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.SmoothedSensorData;
+import com.zuehlke.carrera.javapilot.websocket.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
@@ -111,6 +112,8 @@ public class PlayingWithSmoothing extends UntypedActor {
                 TrackType type = decideTrackPartType(currentTrackPart.getMean());
                 currentTrackPart.setType(type);
                 currentTrackPart = new TrackPart();
+
+                pilotDataEventSender.sendToAll(new TrackPartChangedData(type));
                 trackParts.add(currentTrackPart);
             }
             actualTrackPart = new FloatingHistory(TRACK_PART_MIN_LENGTH);
