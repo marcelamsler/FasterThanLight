@@ -48,19 +48,26 @@ public class PilotDataEventSender extends TextWebSocketHandler {
     }
 
     public void sendToAll(VelocityMessage velocityMessage) {
-        sendMessage(velocityMessage);
+        sendMessage(velocityMessage, EventMessageType.VelocityMessage);
+    }
+
+    public void sendToAll(SmoothedSensorData smoothedSensorData) {
+        sendMessage(smoothedSensorData, EventMessageType.SmoothedSensorData);
     }
 
     public void sendToAll(SensorEvent message) {
-        sendMessage(message);
+        sendMessage(message, EventMessageType.SensorEvent);
     }
 
-    private void sendMessage(Object genericMessage) {
+    private void sendMessage(Object genericMessage, EventMessageType eventMessageType) {
         try {
             Gson gson = new Gson();
-            String outputMessage = gson.toJson(genericMessage);
 
-            LOGGER.info("Sending message to all {}", genericMessage.toString());
+            JsonMessage jsonMessage =
+                    new JsonMessage(genericMessage, eventMessageType);
+            String outputMessage = gson.toJson(jsonMessage);
+
+            LOGGER.info("Sending message to all {}", jsonMessage.eventMessageType.name());
             for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }

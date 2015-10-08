@@ -6,6 +6,8 @@ import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
+import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
+import com.zuehlke.carrera.javapilot.websocket.SmoothedSensorData;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 
 public class PlayingWithSmoothing extends UntypedActor {
     private final ActorRef pilotActor;
+    private PilotDataEventSender pilotDataEventSender;
     private int currentPower = 20;
 
     private int measuringSpeed = 110;
@@ -38,8 +41,9 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     private int lastValue = 1337;
 
-    public PlayingWithSmoothing(ActorRef pilotActor) {
+    public PlayingWithSmoothing(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
+        this.pilotDataEventSender = pilotDataEventSender;
     }
 
     @Override
@@ -72,7 +76,6 @@ public class PlayingWithSmoothing extends UntypedActor {
 
         evaluateTrackType(smoothValue, directionChanged);
 
-
         if (iAmStillStanding()) {
             increase(5);
             pilotActor.tell(new PowerAction(currentPower), getSelf());
@@ -80,6 +83,9 @@ public class PlayingWithSmoothing extends UntypedActor {
             currentPower = measuringSpeed;
             pilotActor.tell(new PowerAction(currentPower), getSelf());
         }
+
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
+        pilotDataEventSender.sendToAll(smoothedSensorData);
     }
 
     private boolean directionChanged(double smoothValue) {
@@ -130,9 +136,10 @@ public class PlayingWithSmoothing extends UntypedActor {
         return TrackType.UNKNOWN;
     }
 
-    public static Props props(ActorRef pilotActor) {
+    public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
-                PlayingWithSmoothing.class, () -> new PlayingWithSmoothing(pilotActor));
+                PlayingWithSmoothing.class, () ->
+                        new PlayingWithSmoothing(pilotActor, pilotDataEventSender));
     }
 
     private double lowPassFilter(double value, long currentTimestamp) {

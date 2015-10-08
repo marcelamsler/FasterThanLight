@@ -4,6 +4,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import com.zuehlke.carrera.javapilot.akka.experimental.PlayingWithSmoothing;
 import com.zuehlke.carrera.javapilot.akka.experimental.PowerUpUntilPenalty;
+import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,9 +27,9 @@ public class PilotTopology {
         this.system = system;
     }
 
-    public Map<String, ActorRef> create() {
+    public Map<String, ActorRef> create(PilotDataEventSender pilotDataEventSender) {
 
-        ActorRef initialProcessor = system.actorOf(PlayingWithSmoothing.props(kobayashi));
+        ActorRef initialProcessor = system.actorOf(PlayingWithSmoothing.props(kobayashi, pilotDataEventSender));
 
         entryPoints.put(PENALTY_ENTRYPOINT, initialProcessor);
         entryPoints.put(SENSOR_ENTRYPOINT, initialProcessor);
