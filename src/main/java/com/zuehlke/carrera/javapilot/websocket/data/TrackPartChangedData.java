@@ -1,4 +1,4 @@
-package com.zuehlke.carrera.javapilot.websocket;
+package com.zuehlke.carrera.javapilot.websocket.data;
 
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;

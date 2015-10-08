@@ -1,6 +1,9 @@
 package com.zuehlke.carrera.javapilot.websocket;
 
 import com.google.gson.Gson;
+import com.zuehlke.carrera.javapilot.websocket.data.EventMessageType;
+import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
+import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
 import org.slf4j.Logger;

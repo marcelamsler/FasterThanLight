@@ -1,5 +1,7 @@
 package com.zuehlke.carrera.javapilot.websocket;
 
+import com.zuehlke.carrera.javapilot.websocket.data.EventMessageType;
+
 /**
  * This is a wrapper class around the message with the type of message ( makes it easier on JS side )
  * @author Kirusanth Poopalasingam ( pkirusanth@gmail.com )
