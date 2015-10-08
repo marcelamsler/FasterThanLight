@@ -1,9 +1,6 @@
 package com.zuehlke.carrera.javapilot.websocket.data;
 
-import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
-
-import java.util.ArrayList;
 
 /**
  * @author Kirusanth Poopalasingam ( pkirusanth@gmail.com )
