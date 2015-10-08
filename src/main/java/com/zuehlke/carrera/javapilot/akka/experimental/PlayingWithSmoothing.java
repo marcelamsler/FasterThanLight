@@ -6,7 +6,6 @@ import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
-import com.zuehlke.carrera.javapilot.services.ExtendedFloatingHistory;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
@@ -16,7 +15,7 @@ import java.util.ArrayList;
 
 
 public class PlayingWithSmoothing extends UntypedActor {
-    private final ActorRef marco;
+    private final ActorRef pilotActor;
     private int currentPower = 20;
 
     private int measuringSpeed = 110;
@@ -40,7 +39,7 @@ public class PlayingWithSmoothing extends UntypedActor {
     private int lastValue = 1337;
 
     public PlayingWithSmoothing(ActorRef pilotActor) {
-        this.marco = pilotActor;
+        this.pilotActor = pilotActor;
     }
 
     @Override
@@ -76,10 +75,10 @@ public class PlayingWithSmoothing extends UntypedActor {
 
         if (iAmStillStanding()) {
             increase(5);
-            marco.tell(new PowerAction(currentPower), getSelf());
+            pilotActor.tell(new PowerAction(currentPower), getSelf());
         } else {
             currentPower = measuringSpeed;
-            marco.tell(new PowerAction(currentPower), getSelf());
+            pilotActor.tell(new PowerAction(currentPower), getSelf());
         }
     }
 
