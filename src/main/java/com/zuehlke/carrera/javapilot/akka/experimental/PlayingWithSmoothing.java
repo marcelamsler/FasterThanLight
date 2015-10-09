@@ -6,6 +6,7 @@ import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
+import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
@@ -18,23 +19,21 @@ import java.util.ArrayList;
 
 
 public class PlayingWithSmoothing extends UntypedActor {
+    public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
     private PilotDataEventSender pilotDataEventSender;
     private int currentPower = 20;
 
-    private int measuringSpeed = 110;
-    private double smoothed = 0.0;
-
-    private int smoothing = 160;
-    private double lastTimestamp = 0.0;
+    private int measuringPower = 110;
+    private long lastTimestamp = 0;
 
     private static final int TRACK_PART_MIN_LENGTH = 3;
     private static final int LINE_TOP_THRESHOLD = 200;
 
     private ArrayList<TrackPart> trackParts = new ArrayList<>();
     private TrackPart currentTrackPart = new TrackPart();
-    private int directionClearanceCount = 0;
 
+    private LowPassFilter lowPassFilter = new LowPassFilter();
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
@@ -61,12 +60,12 @@ public class PlayingWithSmoothing extends UntypedActor {
     }
 
     private void handleSensorEvent(SensorEvent message) {
-        if (message.getTimeStamp() < lastTimestamp || System.currentTimeMillis() - message.getTimeStamp() > 10) {
+        if (message.getTimeStamp() < lastTimestamp || System.currentTimeMillis() - message.getTimeStamp() > timestampDelayThreshold) {
             return;
         }
         double gz = message.getG()[2];
 
-        double smoothValue = lowPassFilter(gz, message.getTimeStamp());
+        double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
         boolean directionChanged = directionChanged(smoothValue);
         if (directionChanged) {
@@ -81,7 +80,7 @@ public class PlayingWithSmoothing extends UntypedActor {
             increase(5);
             pilotActor.tell(new PowerAction(currentPower), getSelf());
         } else {
-            currentPower = measuringSpeed;
+            currentPower = measuringPower;
             pilotActor.tell(new PowerAction(currentPower), getSelf());
         }
 
@@ -107,7 +106,6 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     private void evaluateTrackType(double smoothValue, boolean forceEvaluation) {
         if(forceEvaluation){
-            directionClearanceCount = 0;
             if(currentTrackPart.getSensorValues().size() >= TRACK_PART_MIN_LENGTH){
                 TrackType type = decideTrackPartType(currentTrackPart.getMean());
                 currentTrackPart.setType(type);
@@ -116,11 +114,8 @@ public class PlayingWithSmoothing extends UntypedActor {
                 pilotDataEventSender.sendToAll(new TrackPartChangedData(type));
                 trackParts.add(currentTrackPart);
             }
-            actualTrackPart = new FloatingHistory(TRACK_PART_MIN_LENGTH);
         }
-        actualTrackPart.shift(smoothValue);
         currentTrackPart.pushSensorValue(smoothValue);
-        directionClearanceCount++;
 
     }
 
@@ -143,18 +138,6 @@ public class PlayingWithSmoothing extends UntypedActor {
         return Props.create(
                 PlayingWithSmoothing.class, () ->
                         new PlayingWithSmoothing(pilotActor, pilotDataEventSender));
-    }
-
-    private double lowPassFilter(double value, long currentTimestamp) {
-        double elapsedTime = currentTimestamp - lastTimestamp;
-        double diff = value - smoothed;
-        if (elapsedTime < 60) {
-            smoothed += elapsedTime * diff / smoothing;
-        } else {
-            smoothed += diff / (smoothing / 50);
-        }
-        lastTimestamp = currentTimestamp;
-        return smoothed;
     }
 
     private int increase(int val) {
