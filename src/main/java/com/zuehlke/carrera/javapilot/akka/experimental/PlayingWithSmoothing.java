@@ -37,8 +37,6 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
-    private FloatingHistory actualTrackPart = new FloatingHistory(TRACK_PART_MIN_LENGTH);
-
     private int lastValue = 1337;
 
     public PlayingWithSmoothing(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
@@ -64,7 +62,7 @@ public class PlayingWithSmoothing extends UntypedActor {
             return;
         }
         double gz = message.getG()[2];
-
+        gzDiffHistory.shift(gz);
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
         boolean directionChanged = directionChanged(smoothValue);
