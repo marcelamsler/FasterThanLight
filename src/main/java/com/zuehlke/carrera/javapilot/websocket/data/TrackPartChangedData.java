@@ -1,5 +1,6 @@
 package com.zuehlke.carrera.javapilot.websocket.data;
 
+import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
 
 /**
@@ -7,8 +8,10 @@ import com.zuehlke.carrera.javapilot.model.TrackType;
  */
 public class TrackPartChangedData {
     public final TrackType newTrackType;
+    public final int size;
 
-    public TrackPartChangedData(TrackType newTrackType) {
+    public TrackPartChangedData(TrackType newTrackType, int size) {
         this.newTrackType = newTrackType;
+        this.size = size;
     }
 }

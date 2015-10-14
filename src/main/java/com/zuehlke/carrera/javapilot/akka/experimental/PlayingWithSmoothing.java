@@ -4,6 +4,8 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
+import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
@@ -21,17 +23,15 @@ import java.util.ArrayList;
 public class PlayingWithSmoothing extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
+    private final ActorRef trackRecognizer;
     private PilotDataEventSender pilotDataEventSender;
     private int currentPower = 20;
 
     private int measuringPower = 110;
     private long lastTimestamp = 0;
 
-    private static final int TRACK_PART_MIN_LENGTH = 3;
-    private static final int LINE_TOP_THRESHOLD = 200;
 
     private ArrayList<TrackPart> trackParts = new ArrayList<>();
-    private TrackPart currentTrackPart = new TrackPart();
 
     private LowPassFilter lowPassFilter = new LowPassFilter();
 
@@ -39,9 +39,16 @@ public class PlayingWithSmoothing extends UntypedActor {
 
     private int lastValue = 1337;
 
-    public PlayingWithSmoothing(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
+    public static Props props(ActorRef pilotActor,ActorRef trackRecognizer, PilotDataEventSender pilotDataEventSender) {
+        return Props.create(
+                PlayingWithSmoothing.class, () ->
+                        new PlayingWithSmoothing(pilotActor,trackRecognizer, pilotDataEventSender));
+    }
+
+    public PlayingWithSmoothing(ActorRef pilotActor,ActorRef trackRecognizer, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
+        this.trackRecognizer = trackRecognizer;
     }
 
     @Override
@@ -50,7 +57,14 @@ public class PlayingWithSmoothing extends UntypedActor {
             handleSensorEvent((SensorEvent) message);
         } else if (message instanceof RaceStartMessage) {
             handleRaceStart();
+        } else if (message instanceof TrackPartRecognizedEvent){
+            handleTrackPartRecognized((TrackPartRecognizedEvent) message);
         }
+    }
+
+    private void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
+        trackParts.add(message.getPart());
+        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
     }
 
     private void handleRaceStart() {
@@ -65,14 +79,7 @@ public class PlayingWithSmoothing extends UntypedActor {
         gzDiffHistory.shift(gz);
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
-        boolean directionChanged = directionChanged(smoothValue);
-        if (directionChanged) {
-            show((int) smoothValue, "-");
-        } else {
-            show((int) smoothValue);
-        }
-
-        evaluateTrackType(smoothValue, directionChanged);
+        trackRecognizer.tell(new SmoothedSensorInputEvent(smoothValue),getSelf());
 
         if (iAmStillStanding()) {
             increase(5);
@@ -84,58 +91,6 @@ public class PlayingWithSmoothing extends UntypedActor {
 
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
-    }
-
-    private boolean directionChanged(double smoothValue) {
-        boolean directionChanged = false;
-        if (smoothValue > -LINE_TOP_THRESHOLD && smoothValue < LINE_TOP_THRESHOLD) {
-            directionChanged = lastValue != 0;
-            lastValue = 0;
-        } else if (smoothValue > LINE_TOP_THRESHOLD) {
-            directionChanged = lastValue != 1;
-            lastValue = 1;
-        } else if (smoothValue < -LINE_TOP_THRESHOLD) {
-            directionChanged = lastValue != -1;
-            lastValue = -1;
-        }
-
-        return directionChanged;
-    }
-
-    private void evaluateTrackType(double smoothValue, boolean forceEvaluation) {
-        if(forceEvaluation){
-            if(currentTrackPart.getSensorValues().size() >= TRACK_PART_MIN_LENGTH){
-                TrackType type = decideTrackPartType(currentTrackPart.getMean());
-                currentTrackPart.setType(type);
-                currentTrackPart = new TrackPart();
-
-                pilotDataEventSender.sendToAll(new TrackPartChangedData(type));
-                trackParts.add(currentTrackPart);
-            }
-        }
-        currentTrackPart.pushSensorValue(smoothValue);
-
-    }
-
-    public TrackType decideTrackPartType(double mean){
-        if (mean > -LINE_TOP_THRESHOLD && mean < LINE_TOP_THRESHOLD) {
-            System.out.println("That was a line");
-            return TrackType.STRAIGHT;
-        }
-        else if (mean > LINE_TOP_THRESHOLD) {
-            System.out.println("That was a right curve");
-            return TrackType.RIGHT;
-        } else if (mean < -LINE_TOP_THRESHOLD) {
-            System.out.println("That was a left curve");
-            return TrackType.LEFT;
-        }
-        return TrackType.UNKNOWN;
-    }
-
-    public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
-        return Props.create(
-                PlayingWithSmoothing.class, () ->
-                        new PlayingWithSmoothing(pilotActor, pilotDataEventSender));
     }
 
     private int increase(int val) {
