@@ -7,7 +7,6 @@ import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
-import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
@@ -36,8 +35,6 @@ public class PlayingWithSmoothing extends UntypedActor {
     private LowPassFilter lowPassFilter = new LowPassFilter();
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
-
-    private int lastValue = 1337;
 
     public static Props props(ActorRef pilotActor,ActorRef trackRecognizer, PilotDataEventSender pilotDataEventSender) {
         return Props.create(

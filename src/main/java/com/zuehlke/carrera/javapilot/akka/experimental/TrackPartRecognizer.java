@@ -13,7 +13,7 @@ public class TrackPartRecognizer extends UntypedActor {
     private static final int TRACK_PART_MIN_LENGTH = 3;
     private static final int LINE_TOP_THRESHOLD = 200;
     private TrackPart currentTrackPart = new TrackPart();
-    private int lastValue;
+    private int lastValue = 1337;
 
 
     public static Props props() {
