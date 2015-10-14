@@ -14,7 +14,6 @@ import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
-import org.apache.commons.lang.StringUtils;
 
 import java.util.ArrayList;
 
@@ -77,6 +76,8 @@ public class PlayingWithSmoothing extends UntypedActor {
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
         trackRecognizer.tell(new SmoothedSensorInputEvent(smoothValue),getSelf());
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
+        pilotDataEventSender.sendToAll(smoothedSensorData);
 
         if (iAmStillStanding()) {
             increase(5);
@@ -85,28 +86,11 @@ public class PlayingWithSmoothing extends UntypedActor {
             currentPower = measuringPower;
             pilotActor.tell(new PowerAction(currentPower), getSelf());
         }
-
-        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
-        pilotDataEventSender.sendToAll(smoothedSensorData);
     }
 
     private int increase(int val) {
         currentPower = currentPower + val;
         return currentPower;
-    }
-
-    private void show(int gyr2) {
-        show(gyr2, "|");
-    }
-
-    private void show(int gyr2, String symbol) {
-        int scale = 120 * (gyr2 - (-10000)) / 20000;
-        System.out.println(StringUtils.repeat(" ", scale) + symbol);
-    }
-
-    private void show(int gyr2, int value) {
-        int scale = 120 * (gyr2 - (-10000)) / 20000;
-        System.out.println(StringUtils.repeat(" ", scale) + value);
     }
 
     private boolean iAmStillStanding() {
