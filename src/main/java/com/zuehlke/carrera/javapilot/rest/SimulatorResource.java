@@ -1,13 +1,16 @@
 package com.zuehlke.carrera.javapilot.rest;
 
+import com.zuehlke.carrera.javapilot.services.SimulatorService;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RaceStopMessage;
 import com.zuehlke.carrera.simulator.model.racetrack.TrackInfo;
-import com.zuehlke.carrera.javapilot.services.SimulatorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 
+/**
+ * This class is the entrypoint from JS to start/stop a simulation
+ */
 @RestController
 @RequestMapping("/api/simulator")
 public class SimulatorResource {
