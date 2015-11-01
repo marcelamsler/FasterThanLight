@@ -7,6 +7,7 @@ import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
+import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.CloseStatus;
@@ -75,7 +76,7 @@ public class PilotDataEventSender extends TextWebSocketHandler {
                     new JsonMessage(genericMessage, eventMessageType);
             String outputMessage = gson.toJson(jsonMessage);
 
-            //LOGGER.info("Sending message to all {}", outputMessage);
+            LOGGER.info("Sending message to all {}", outputMessage);
             for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }
@@ -86,5 +87,9 @@ public class PilotDataEventSender extends TextWebSocketHandler {
 
     public void sendToAll(RoundTimeMessage message) {
         sendMessage(message,EventMessageType.LapCompleted);
+    }
+
+    public void sendToAll(TrackDesign trackDesign){
+        sendMessage(trackDesign,EventMessageType.trackInfo);
     }
 }

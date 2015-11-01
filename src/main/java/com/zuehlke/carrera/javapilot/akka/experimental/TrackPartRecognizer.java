@@ -41,7 +41,7 @@ public class TrackPartRecognizer extends UntypedActor {
             getSender().tell(new TrackPartRecognizedEvent(currentTrackPart),getSelf());
             currentTrackPart = new TrackPart();
         }
-        currentTrackPart.pushSensorValue(smoothValue);
+        currentTrackPart.pushSensorValue(smoothValue,message.getRaw());
     }
 
 

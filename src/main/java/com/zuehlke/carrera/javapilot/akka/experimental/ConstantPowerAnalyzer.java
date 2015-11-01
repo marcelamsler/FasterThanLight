@@ -5,9 +5,12 @@ import akka.actor.Props;
 import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
+import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
+import com.zuehlke.carrera.javapilot.model.AnalyzedTrackPart;
 import com.zuehlke.carrera.javapilot.model.Track;
+import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
@@ -15,6 +18,7 @@ import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
 public class ConstantPowerAnalyzer extends UntypedActor {
@@ -31,7 +35,7 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     private long lastTimestamp = 0;
 
 
-    private Track track = new Track();
+    private Track<TrackPart> track = new Track<>();
 
     private LowPassFilter lowPassFilter = new LowPassFilter();
 
@@ -60,18 +64,35 @@ public class ConstantPowerAnalyzer extends UntypedActor {
             handleTrackPartRecognized((TrackPartRecognizedEvent) message);
         }else if (message instanceof RoundTimeMessage) {
             handleRoundTime((RoundTimeMessage) message);
+        }else if (message instanceof TrackAnalyzedEvent){
+            handleTrackAnalyzed((TrackAnalyzedEvent) message);
         }
+    }
+
+    private void handleTrackAnalyzed(TrackAnalyzedEvent message) {
+        Track<AnalyzedTrackPart> track = message.getTrack();
+        TrackDesign trackDesign = new TrackDesign();
+
+        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
+            if (analyzedTrackPart.isStraight()){
+                trackDesign.straight(analyzedTrackPart.getLength());
+            }
+            else if(analyzedTrackPart.isCurve()){
+                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
+            }
+        }
+        trackDesign.create();
+        pilotDataEventSender.sendToAll(trackDesign);
     }
 
     private void handleRoundTime(RoundTimeMessage message) {
         if(message.getRoundDuration() > maxRoundTime) {
-            track = new Track();
+            track = new Track<>();
         }
         else{
             trackRecognized = true;
             trackAnalyzer.tell(new TrackRecognizedEvent(track),getSelf());
         }
-
     }
 
     private void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
@@ -90,9 +111,12 @@ public class ConstantPowerAnalyzer extends UntypedActor {
         }
         double gz = message.getG()[2];
         gzDiffHistory.shift(gz);
-        double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
-        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue), getSelf());
+
+        double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
+        if (!trackRecognized) {
+            trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
+        }
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
