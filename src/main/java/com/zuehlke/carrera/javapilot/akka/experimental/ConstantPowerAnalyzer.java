@@ -78,7 +78,19 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     }
 
     private void handleSensorEvent(SensorEvent message) {
-        if (message.getTimeStamp() < lastTimestamp || System.currentTimeMillis() - message.getTimeStamp() > timestampDelayThreshold) {
+        /**
+         * Is the case when you get a messageA and then a messageB.
+         * You've processed messageB - missed messageA. Now you process messageC.
+         * And messageA comes again - then you ignore that
+         */
+        boolean obsoleteMessage = message.getTimeStamp() < lastTimestamp;
+
+        /**
+         * If for long time no message comes
+         */
+        boolean noMessageForFewMillies = System.currentTimeMillis() - message.getTimeStamp() > timestampDelayThreshold;
+
+        if (obsoleteMessage /*|| noMessageForFewMillies*/) {
             return;
         }
         double gz = message.getG()[2];
