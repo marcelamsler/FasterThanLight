@@ -14,7 +14,7 @@ import java.util.LinkedList;
 
 public class TrackAnalyzer extends UntypedActor {
 
-    private static final double innerRadius = 23;
+    private static final double innerRadius = 18;
     private static final double outerRadius = 28;
 
     public static Props props() {
