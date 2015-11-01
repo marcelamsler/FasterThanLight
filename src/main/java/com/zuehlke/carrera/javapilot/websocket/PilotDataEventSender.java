@@ -75,12 +75,12 @@ public class PilotDataEventSender extends TextWebSocketHandler {
                     new JsonMessage(genericMessage, eventMessageType);
             String outputMessage = gson.toJson(jsonMessage);
 
-            LOGGER.info("Sending message to all {}", outputMessage);
+            //LOGGER.info("Sending message to all {}", outputMessage);
             for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }
         } catch (Exception e) {
-            //LOGGER.warn("Something went wrong - call chuck norris: ", e);
+            LOGGER.warn("Something went wrong - call chuck norris: ", e);
         }
     }
 

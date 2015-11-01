@@ -25,6 +25,7 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     private PilotDataEventSender pilotDataEventSender;
     private boolean trackRecognized = false;
     private int currentPower = 20;
+    private final long maxRoundTime = 100000000;
 
     private int measuringPower = 110;
     private long lastTimestamp = 0;
@@ -63,7 +64,13 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     }
 
     private void handleRoundTime(RoundTimeMessage message) {
-        trackRecognized = true;
+        if(message.getRoundDuration() > maxRoundTime) {
+            track = new Track();
+        }
+        else{
+            trackRecognized = true;
+            trackAnalyzer.tell(new TrackRecognizedEvent(track),getSelf());
+        }
 
     }
 
