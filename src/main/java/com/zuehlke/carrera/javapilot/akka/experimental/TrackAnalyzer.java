@@ -81,7 +81,7 @@ public class TrackAnalyzer extends UntypedActor {
                 angle = Math.min(8,angle);
                 angle = Math.max(1,angle);
 
-                if (trackPart.getType() == TrackType.LEFT){
+                if (trackPart.getType() == TrackType.RIGHT){
                     angle *= -1;
                 }
 
