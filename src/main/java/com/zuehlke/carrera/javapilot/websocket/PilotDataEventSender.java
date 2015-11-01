@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Websocket handler, which is here to expos some events coming for the java pilot to the web client.
+ * Websocket handler, which is here to expose some events coming for the java pilot to the web client.
  *
  * Used with plain web socket, no STOMP wrapping.
  *
@@ -74,7 +74,7 @@ public class PilotDataEventSender extends TextWebSocketHandler {
                     new JsonMessage(genericMessage, eventMessageType);
             String outputMessage = gson.toJson(jsonMessage);
 
-            LOGGER.info("Sending message to all {}", jsonMessage.eventMessageType.name());
+            LOGGER.info("Sending message to all {}", outputMessage);
             for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }
