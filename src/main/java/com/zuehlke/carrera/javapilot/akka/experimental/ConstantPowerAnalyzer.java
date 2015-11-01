@@ -6,45 +6,47 @@ import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.model.TrackPart;
+import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
+import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
+import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
-import java.util.ArrayList;
-
-
-public class PlayingWithSmoothing extends UntypedActor {
+public class ConstantPowerAnalyzer extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
-    private final ActorRef trackRecognizer;
+    private final ActorRef trackPartRecognizer;
+    private final ActorRef trackAnalyzer;
     private PilotDataEventSender pilotDataEventSender;
+    private boolean trackRecognized = false;
     private int currentPower = 20;
 
     private int measuringPower = 110;
     private long lastTimestamp = 0;
 
 
-    private ArrayList<TrackPart> trackParts = new ArrayList<>();
+    private Track track = new Track();
 
     private LowPassFilter lowPassFilter = new LowPassFilter();
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
-    public static Props props(ActorRef pilotActor,ActorRef trackRecognizer, PilotDataEventSender pilotDataEventSender) {
+    public static Props props(ActorRef pilotActor, ActorRef trackRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
-                PlayingWithSmoothing.class, () ->
-                        new PlayingWithSmoothing(pilotActor,trackRecognizer, pilotDataEventSender));
+                ConstantPowerAnalyzer.class, () ->
+                        new ConstantPowerAnalyzer(pilotActor,trackRecognizer, trackAnalyzer, pilotDataEventSender));
     }
 
-    public PlayingWithSmoothing(ActorRef pilotActor,ActorRef trackRecognizer, PilotDataEventSender pilotDataEventSender) {
+    public ConstantPowerAnalyzer(ActorRef pilotActor, ActorRef trackPartRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
-        this.trackRecognizer = trackRecognizer;
+        this.trackPartRecognizer = trackPartRecognizer;
+        this.trackAnalyzer = trackAnalyzer;
     }
 
     @Override
@@ -55,16 +57,24 @@ public class PlayingWithSmoothing extends UntypedActor {
             handleRaceStart();
         } else if (message instanceof TrackPartRecognizedEvent){
             handleTrackPartRecognized((TrackPartRecognizedEvent) message);
+        }else if (message instanceof RoundTimeMessage) {
+            handleRoundTime((RoundTimeMessage) message);
         }
     }
 
+    private void handleRoundTime(RoundTimeMessage message) {
+        trackRecognized = true;
+
+    }
+
     private void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-        trackParts.add(message.getPart());
+        track.addTrackPart(message.getPart());
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
     }
 
     private void handleRaceStart() {
-
+        trackRecognized = true;
+        trackAnalyzer.tell(new TrackRecognizedEvent(track),getSelf());
     }
 
     private void handleSensorEvent(SensorEvent message) {
@@ -75,7 +85,7 @@ public class PlayingWithSmoothing extends UntypedActor {
         gzDiffHistory.shift(gz);
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
 
-        trackRecognizer.tell(new SmoothedSensorInputEvent(smoothValue),getSelf());
+        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue), getSelf());
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 

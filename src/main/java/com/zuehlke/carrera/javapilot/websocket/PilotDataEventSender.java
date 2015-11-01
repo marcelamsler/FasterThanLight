@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.zuehlke.carrera.javapilot.websocket.data.EventMessageType;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
+import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
 import org.slf4j.Logger;
@@ -79,7 +80,11 @@ public class PilotDataEventSender extends TextWebSocketHandler {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }
         } catch (Exception e) {
-            LOGGER.warn("Something went wrong - call chuck norris: ", e);
+            //LOGGER.warn("Something went wrong - call chuck norris: ", e);
         }
+    }
+
+    public void sendToAll(RoundTimeMessage message) {
+        sendMessage(message,EventMessageType.LapCompleted);
     }
 }

@@ -2,8 +2,8 @@ package com.zuehlke.carrera.javapilot.akka;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import com.zuehlke.carrera.javapilot.akka.experimental.PlayingWithSmoothing;
-import com.zuehlke.carrera.javapilot.akka.experimental.PowerUpUntilPenalty;
+import com.zuehlke.carrera.javapilot.akka.experimental.ConstantPowerAnalyzer;
+import com.zuehlke.carrera.javapilot.akka.experimental.TrackAnalyzer;
 import com.zuehlke.carrera.javapilot.akka.experimental.TrackPartRecognizer;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 
@@ -30,7 +30,8 @@ public class PilotTopology {
 
     public Map<String, ActorRef> create(PilotDataEventSender pilotDataEventSender) {
         ActorRef trackPartRecognizer = system.actorOf(TrackPartRecognizer.props());
-        ActorRef initialProcessor = system.actorOf(PlayingWithSmoothing.props(kobayashi,trackPartRecognizer, pilotDataEventSender));
+        ActorRef trackAnalyzer = system.actorOf(TrackAnalyzer.props());
+        ActorRef initialProcessor = system.actorOf(ConstantPowerAnalyzer.props(kobayashi, trackPartRecognizer,trackAnalyzer, pilotDataEventSender));
 
         entryPoints.put(PENALTY_ENTRYPOINT, initialProcessor);
         entryPoints.put(SENSOR_ENTRYPOINT, initialProcessor);
