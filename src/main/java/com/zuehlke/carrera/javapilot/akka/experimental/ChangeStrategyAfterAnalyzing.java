@@ -24,10 +24,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private final ActorRef trackPartRecognizer;
     private final ActorRef trackAnalyzer;
     private PilotDataEventSender pilotDataEventSender;
-    private boolean trackRecognized = false;
-    private int currentPower = 20;
-    private final long maxRoundTime = 100000000;
-    private boolean firstRound  = true;
 
     private long lastTimestamp = 0;
 
@@ -50,7 +46,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
 
-        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, getSelf(), recognizedTrack);
+        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, trackAnalyzer, getSelf(), recognizedTrack);
     }
 
     @Override
@@ -62,12 +58,13 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         } else if (message instanceof TrackPartRecognizedEvent){
             powerStrategy.handleTrackPartRecognized((TrackPartRecognizedEvent) message);
         }else if (message instanceof RoundTimeMessage) {
-            handleRoundTime((RoundTimeMessage) message);
+            powerStrategy.handleRoundTime((RoundTimeMessage) message);
         } else if ( message instanceof PenaltyMessage) {
             handlePenaltyMessage ( (PenaltyMessage) message );
         }else if (message instanceof TrackAnalyzedEvent){
             TrackAnalyzedEvent trackAnalyzedEvent = (TrackAnalyzedEvent) message;
             analyzedTrack = trackAnalyzedEvent.getTrack();
+            System.out.println("analyzed");
             handleTrackAnalyzed(trackAnalyzedEvent);
         }
     }
@@ -83,21 +80,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     }
 
     private void handleRaceStart() {
-    }
-
-    private void handleRoundTime(RoundTimeMessage message) {
-        if(message.getRoundDuration() > maxRoundTime) {
-            recognizedTrack = new Track<>();
-        }
-        else{
-            if(firstRound){
-                firstRound = false;
-            }
-            else {
-                trackRecognized = true;
-                trackAnalyzer.tell(new TrackRecognizedEvent(recognizedTrack), getSelf());
-            }
-        }
     }
 
     private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {

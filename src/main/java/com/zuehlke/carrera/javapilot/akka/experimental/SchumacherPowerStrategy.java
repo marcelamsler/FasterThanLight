@@ -11,6 +11,7 @@ import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
+import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
@@ -62,6 +63,11 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
         currentPower = defaultPower;
         pilotActor.tell(new PowerAction(currentPower), sender);
+
+    }
+
+    @Override
+    public void handleRoundTime(RoundTimeMessage message) {
 
     }
 
