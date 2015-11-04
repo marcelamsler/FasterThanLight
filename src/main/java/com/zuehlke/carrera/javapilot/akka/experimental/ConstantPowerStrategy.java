@@ -51,30 +51,6 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleSensorEvent(final SensorEvent message, final long lastTimestamp, final long timestampDelayThreshold) {
-        /**
-         * Is the case when you get a messageA and then a messageB.
-         * You've processed messageB - missed messageA. Now you process messageC.
-         * And messageA comes again - then you ignore that
-         */
-        boolean obsoleteMessage = message.getTimeStamp() < lastTimestamp;
-
-        /**
-         * If for long time no message comes
-         */
-        boolean noMessageForFewMillies = System.currentTimeMillis() - message.getTimeStamp() > timestampDelayThreshold;
-
-        if (obsoleteMessage /*|| noMessageForFewMillies*/) {
-            return;
-        }
-        double gz = message.getG()[2];
-        gzDiffHistory.shift(gz);
-
-
-        double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
-        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), sender);
-        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
-        pilotDataEventSender.sendToAll(smoothedSensorData);
-
         if (iAmStillStanding()) {
             increase(5);
             pilotActor.tell(new PowerAction(currentPower), sender);
@@ -108,5 +84,10 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     @Override
     public boolean iAmStillStanding() {
         return gzDiffHistory.currentStDev() < 3;
+    }
+
+    @Override
+    public FloatingHistory getGzDiffHistory() {
+        return gzDiffHistory;
     }
 }
