@@ -52,7 +52,9 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
         TrackPart lastTrackPart = findCurrentPositionInAnalyzedTrack();
 
         if (lastTrackPart != null) {
-            currentPower = learningMap.get(lastTrackPart.id);
+            if (learningMap.containsKey(lastTrackPart.id)) {
+                currentPower = learningMap.get(lastTrackPart.id);
+            }
         }
 
         pilotActor.tell(new PowerAction(currentPower), sender);
@@ -61,7 +63,12 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private TrackPart findCurrentPositionInAnalyzedTrack() {
         ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
-        return lastMatchingTrackParts != null ? lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1) : null;
+        if (lastMatchingTrackParts != null && !lastMatchingTrackParts.isEmpty()) {
+            return lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+        } else {
+            return null;
+        }
+
     }
 
     private ArrayList<TrackPart> findTrackPartsInAnalyzedTrack(ArrayList<TrackPart> currentTrackParts) {
@@ -91,12 +98,12 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
         return analyzedTrackPart.getType() == currentTrackPart.getType() &&
-                hasAboutSameDuration(analyzedTrackPart.getDuration(), currentTrackPart.getDuration());
+                hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
-    private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
-        double maxSlowerRatio = 0.9;
-        double maxFasterRatio = 1.5;
+    private boolean hasAboutSameSize(int constantPowerDuration, int racePowerDuration) {
+        double maxSlowerRatio = 0.5;
+        double maxFasterRatio = 3.0;
         return racePowerDuration > constantPowerDuration * maxSlowerRatio &&
             racePowerDuration < constantPowerDuration * maxFasterRatio;
     }
@@ -129,7 +136,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
         TrackPart beforePenaltyTrackPart = null;
         if (lastMatchingTrackParts != null) {
-            beforePenaltyTrackPart = lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1);
+            beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
         }
 
         if(beforePenaltyTrackPart != null) {
