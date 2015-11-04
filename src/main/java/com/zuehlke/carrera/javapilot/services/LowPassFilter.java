@@ -4,7 +4,7 @@ package com.zuehlke.carrera.javapilot.services;
 public class LowPassFilter {
 
     private double smoothed = 0.0;
-    private int smoothing = 160;
+    private int smoothing = 100;
     private long previousTimestamp = 0;
 
     public double smoothen(double value, long currentTimestamp) {

@@ -126,9 +126,7 @@ public class ConstantPowerAnalyzer extends UntypedActor {
 
 
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
-        if (!trackRecognized) {
-            trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
-        }
+        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
