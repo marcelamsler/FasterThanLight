@@ -61,7 +61,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private TrackPart findCurrentPositionInAnalyzedTrack() {
         ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
-        return lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1);
+        return lastMatchingTrackParts != null ? lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1) : null;
     }
 
     private ArrayList<TrackPart> findTrackPartsInAnalyzedTrack(ArrayList<TrackPart> currentTrackParts) {
@@ -82,7 +82,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
                     indexOfLastWantedTrackPart = analyzedTrackParts.size() - 1;
                 }
 
-                return (ArrayList<TrackPart>) analyzedTrackParts.subList(indexOfCurrentTrackPart, indexOfLastWantedTrackPart);
+                return new ArrayList<>(analyzedTrackParts.subList(indexOfCurrentTrackPart, indexOfLastWantedTrackPart));
             }
 
         }
@@ -127,7 +127,10 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     public void handlePenaltyMessage(PenaltyMessage message) {
         ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
-        TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1);
+        TrackPart beforePenaltyTrackPart = null;
+        if (lastMatchingTrackParts != null) {
+            beforePenaltyTrackPart = lastMatchingTrackParts.get(COUNT_OF_TRACKPARTS_TO_COMPARE - 1);
+        }
 
         if(beforePenaltyTrackPart != null) {
             UUID trackPartId = beforePenaltyTrackPart.id;

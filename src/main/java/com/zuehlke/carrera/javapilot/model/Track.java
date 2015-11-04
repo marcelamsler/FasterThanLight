@@ -21,7 +21,7 @@ public class Track<T extends TrackPart> {
     }
 
     public ArrayList<T> getLastTrackParts(int count) {
-        return (ArrayList<T>) trackParts.subList(Math.max(trackParts.size() - count, 0), trackParts.size());
+        return new ArrayList<>(trackParts.subList(Math.max(trackParts.size() - count, 0), trackParts.size()));
     }
 
 }
