@@ -29,7 +29,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private final long maxRoundTime = 100000000;
     private boolean firstRound  = true;
 
-    private int measuringPower = 200;
     private long lastTimestamp = 0;
 
     private PowerStrategyInterface powerStrategy;
@@ -48,7 +47,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     public ChangeStrategyAfterAnalyzing(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
-        this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));;
+        this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
 
         powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, getSelf(), recognizedTrack);

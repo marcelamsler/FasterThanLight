@@ -21,7 +21,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private LowPassFilter lowPassFilter;
     private ActorRef trackPartRecognizer;
     private int currentPower;
-    private int defaultPower = 150;
+    private int defaultPower = 200;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
     private Track<TrackPart> analyzedTrack;
@@ -60,13 +60,9 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
-        if (iAmStillStanding()) {
-            increase(5);
-            pilotActor.tell(new PowerAction(currentPower), sender);
-        } else {
-            currentPower = defaultPower;
-            pilotActor.tell(new PowerAction(currentPower), sender);
-        }
+        currentPower = defaultPower;
+        pilotActor.tell(new PowerAction(currentPower), sender);
+
     }
 
     @Override
