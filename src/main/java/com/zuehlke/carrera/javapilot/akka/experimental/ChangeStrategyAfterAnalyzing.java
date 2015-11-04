@@ -15,7 +15,9 @@ import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 
+@SuppressWarnings("Duplicates")
 public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
@@ -67,8 +69,14 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         }else if (message instanceof TrackAnalyzedEvent){
             TrackAnalyzedEvent trackAnalyzedEvent = (TrackAnalyzedEvent) message;
             analyzedTrack = trackAnalyzedEvent.getTrack();
-            powerStrategy.handleTrackAnalyzed(trackAnalyzedEvent);
+            handleTrackAnalyzed(trackAnalyzedEvent);
         }
+    }
+
+    public void handleTrackAnalyzed(final TrackAnalyzedEvent message) {
+        Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
+        TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
+        pilotDataEventSender.sendToAll(trackDesign);
     }
 
     private void handlePenaltyMessage(PenaltyMessage message) {
@@ -90,6 +98,21 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
                 trackAnalyzer.tell(new TrackRecognizedEvent(recognizedTrack), getSelf());
             }
         }
+    }
+
+    private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {
+        TrackDesign trackDesign = new TrackDesign();
+
+        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
+            if (analyzedTrackPart.isStraight()){
+                trackDesign.straight(analyzedTrackPart.getLength());
+            }
+            else if(analyzedTrackPart.isCurve()){
+                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
+            }
+        }
+        trackDesign.create();
+        return trackDesign;
     }
 
 }

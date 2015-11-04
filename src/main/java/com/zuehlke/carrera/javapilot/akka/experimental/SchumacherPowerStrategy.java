@@ -61,6 +61,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
         trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), sender);
+
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 

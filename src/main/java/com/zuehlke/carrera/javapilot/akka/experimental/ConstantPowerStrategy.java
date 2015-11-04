@@ -40,13 +40,6 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     }
 
     @Override
-    public void handleTrackAnalyzed(final TrackAnalyzedEvent message) {
-        Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
-        TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
-        pilotDataEventSender.sendToAll(trackDesign);
-    }
-
-    @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         recognizedTrack.addTrackPart(message.getPart());
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
@@ -86,23 +79,6 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
             pilotActor.tell(new PowerAction(currentPower), sender);
         }
     }
-
-
-    private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {
-        TrackDesign trackDesign = new TrackDesign();
-
-        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
-            if (analyzedTrackPart.isStraight()){
-                trackDesign.straight(analyzedTrackPart.getLength());
-            }
-            else if(analyzedTrackPart.isCurve()){
-                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
-            }
-        }
-        trackDesign.create();
-        return trackDesign;
-    }
-
 
     @Override
     public int increase(int val) {

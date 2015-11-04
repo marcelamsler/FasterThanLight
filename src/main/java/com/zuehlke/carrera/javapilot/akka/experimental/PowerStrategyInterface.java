@@ -5,7 +5,6 @@ import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 
 public interface PowerStrategyInterface {
-    void handleTrackAnalyzed(TrackAnalyzedEvent message);
 
     void handleTrackPartRecognized(TrackPartRecognizedEvent message);
 
