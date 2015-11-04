@@ -10,7 +10,7 @@ angular.module('simulator')
         $scope.raceTrackId= "<raceTrackID>";
 
         $scope.selectedDesign = "Budapest";
-        $scope.availableDesigns = [ $scope.selectedDesign, "Berlin", "Oerlikon", "Hollywood", "Kuwait","Test Track"];
+        $scope.availableDesigns = [ $scope.selectedDesign, "Berlin", "Oerlikon", "Hollywood", "Kuwait","Test Track", "Inner Test Track"];
 
         $scope.connected = false;
 
@@ -109,6 +109,7 @@ angular.module('simulator')
                 $scope.originalAnchorX = trackInfo.initialAnchor.posX;
                 $scope.originalAnchorY = trackInfo.initialAnchor.posY;
                 $scope.baseAnchor.angle = trackInfo.initialAnchor.angle360;
+                console.log(JSON.stringify(trackInfo));
 
                 adjustScale();
             });
@@ -239,6 +240,8 @@ angular.module('simulator')
                 x: $scope.padding + $scope.originalAnchorX * $scope.scaleFactor,
                 y: $scope.padding + $scope.originalAnchorY * $scope.scaleFactor
             };
+            console.log($scope.baseAnchor);
+            console.log($scope.scaleFactor);
             drawOnCanvas ();
         };
 
@@ -300,6 +303,8 @@ angular.module('simulator')
                     anchor = curve ( ctx, anchor, scale * sector.radius, Math.abs(sector.angle), sector.orientation === "LEFT");
                 }
             });
+
+
 
             // Draw the final / start
             drawFinal(ctx, $scope.baseAnchor);
