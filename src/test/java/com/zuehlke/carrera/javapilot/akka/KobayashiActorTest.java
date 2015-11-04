@@ -25,7 +25,7 @@ public class KobayashiActorTest {
 
         ActorSystem system = ActorSystem.create("testSystem");
 
-        ActorRef pilot = system.actorOf(JavaPilotActor.props(properties, new PilotDataEventSender()));
+        ActorRef pilot = system.actorOf(JavaPilotActor.props(properties, new PilotDataEventSender(), null));
 
         Thread.sleep(1000);
 
