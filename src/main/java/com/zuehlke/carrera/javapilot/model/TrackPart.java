@@ -5,10 +5,12 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 
 public class TrackPart {
 
+    public UUID id = UUID.randomUUID();
     protected final ArrayList<Double> rawSensorValues;
     protected ArrayList<Double> sensorValues;
 
@@ -53,6 +55,7 @@ public class TrackPart {
             for (double value : sensorValues) {
                 sum += value;
             }
+
             return sum / sensorValues.size();
         }
         return sum;

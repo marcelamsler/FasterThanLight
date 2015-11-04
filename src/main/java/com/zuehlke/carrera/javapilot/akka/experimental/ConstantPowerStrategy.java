@@ -11,6 +11,7 @@ import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
+import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
@@ -89,5 +90,10 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     @Override
     public FloatingHistory getGzDiffHistory() {
         return gzDiffHistory;
+    }
+
+    @Override
+    public void handlePenaltyMessage(PenaltyMessage message) {
+
     }
 }
