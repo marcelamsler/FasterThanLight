@@ -1,5 +1,6 @@
 package com.zuehlke.carrera.javapilot.akka.experimental;
 
+import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import akka.japi.Creator;
@@ -16,14 +17,20 @@ public class TrackAnalyzer extends UntypedActor {
 
     private static final double innerRadius = 18;
     private static final double outerRadius = 28;
+    public static final double CURVE_MULTIPLIER = 1.1;
+    private final ActorRef receiver;
 
-    public static Props props() {
+    public TrackAnalyzer(ActorRef receiver) {
+        this.receiver = receiver;
+    }
+
+    public static Props props(ActorRef receiver) {
         return Props.create(new Creator<TrackAnalyzer>() {
             private static final long serialVersionUID = 1L;
 
             @Override
             public TrackAnalyzer create() throws Exception {
-                return new TrackAnalyzer();
+                return new TrackAnalyzer(receiver);
             }
         });
     }
@@ -47,7 +54,7 @@ public class TrackAnalyzer extends UntypedActor {
         for(TrackPart trackPart: trackParts){
             double avg = trackPart.getSize()*trackPart.getMean();
             if(previousTrackPart != null && previousTrackPart.isCurve()){
-                avg *= 1.1;
+                avg *= CURVE_MULTIPLIER;
             }
             if(trackPart.getType() == TrackType.RIGHT){
                 avgRight += avg;
@@ -74,7 +81,7 @@ public class TrackAnalyzer extends UntypedActor {
             int angle = 0;
             double radius = 0.0;
             if (trackPart.isStraight()){
-                length = trackPart.getSize() * 1.5;
+                length = trackPart.getSize() * 5;
             }
             if(trackPart.isCurve()) {
                 angle = trackPart.getSize()/8;
@@ -86,8 +93,10 @@ public class TrackAnalyzer extends UntypedActor {
                 }
 
                 if (trackPart.getType() == innerType) {
+                    System.out.println("inner");
                     radius = innerRadius;
                 } else {
+                    System.out.println("outer");
                     radius = outerRadius;
                 }
             }
@@ -100,8 +109,8 @@ public class TrackAnalyzer extends UntypedActor {
             System.out.println(trackPart.getMean());
             System.out.println(trackPart.getStdDev());
             System.out.println("------------------");
-        }
 
-        getSender().tell(new TrackAnalyzedEvent(analyzedTrack),getSelf());
+        }
+        receiver.tell(new TrackAnalyzedEvent(analyzedTrack), getSelf());
     }
 }

@@ -12,6 +12,8 @@ public class TrackPart {
     protected final ArrayList<Double> rawSensorValues;
     protected ArrayList<Double> sensorValues;
 
+    protected long duration;
+
     protected TrackType type;
 
     public TrackPart(){
@@ -75,6 +77,14 @@ public class TrackPart {
 
     public boolean isStraight(){
         return type == TrackType.STRAIGHT;
+    }
+
+    public long getDuration() {
+        return duration;
+    }
+
+    public void setDuration(long duration) {
+        this.duration = duration;
     }
 
 }

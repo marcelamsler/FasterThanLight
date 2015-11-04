@@ -29,9 +29,8 @@ public class PilotTopology {
     }
 
     public Map<String, ActorRef> create(PilotDataEventSender pilotDataEventSender) {
-        ActorRef trackPartRecognizer = system.actorOf(TrackPartRecognizer.props());
-        ActorRef trackAnalyzer = system.actorOf(TrackAnalyzer.props());
-        ActorRef initialProcessor = system.actorOf(ConstantPowerAnalyzer.props(kobayashi, trackPartRecognizer,trackAnalyzer, pilotDataEventSender));
+
+        ActorRef initialProcessor = system.actorOf(ConstantPowerAnalyzer.props(kobayashi, pilotDataEventSender));
 
         entryPoints.put(PENALTY_ENTRYPOINT, initialProcessor);
         entryPoints.put(SENSOR_ENTRYPOINT, initialProcessor);

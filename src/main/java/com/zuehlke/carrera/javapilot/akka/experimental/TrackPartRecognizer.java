@@ -1,8 +1,10 @@
 package com.zuehlke.carrera.javapilot.akka.experimental;
 
+import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import akka.japi.Creator;
+import com.zuehlke.carrera.javapilot.akka.events.InterruptForNewLap;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
@@ -12,19 +14,23 @@ public class TrackPartRecognizer extends UntypedActor {
 
     private static final int TRACK_PART_MIN_LENGTH = 3;
     private static final int LINE_TOP_THRESHOLD = 200;
+    private final ActorRef receiver;
     private TrackPart currentTrackPart = new TrackPart();
     private int lastValue = 1337;
+    private long startTimestamp;
 
-
-    public static Props props() {
+    public static Props props(ActorRef receiver) {
         return Props.create(new Creator<TrackPartRecognizer>() {
             private static final long serialVersionUID = 1L;
 
             @Override
             public TrackPartRecognizer create() throws Exception {
-                return new TrackPartRecognizer();
+                return new TrackPartRecognizer(receiver);
             }
         });
+    }
+    public  TrackPartRecognizer(ActorRef receiver){
+        this.receiver = receiver;
     }
 
     @Override
@@ -32,16 +38,35 @@ public class TrackPartRecognizer extends UntypedActor {
         if (message instanceof SmoothedSensorInputEvent) {
             handleSmoothedSensorInputEvent((SmoothedSensorInputEvent) message);
         }
+        if(message instanceof InterruptForNewLap){
+            handleInterruptForNewLapEvent();
+        }
+    }
+
+    private void handleInterruptForNewLapEvent() {
+        finishCurrentTrackPart();
+        startNewTrackPart();
     }
 
     private void handleSmoothedSensorInputEvent(SmoothedSensorInputEvent message) {
         double smoothValue = message.getValue();
-        if(directionChanged(smoothValue) && currentTrackPart.getSensorValues().size() >= TRACK_PART_MIN_LENGTH){
-            evaluateTrackType();
-            getSender().tell(new TrackPartRecognizedEvent(currentTrackPart),getSelf());
-            currentTrackPart = new TrackPart();
+        boolean newTrackPartDetected = directionChanged(smoothValue) && currentTrackPart.getSensorValues().size() >= TRACK_PART_MIN_LENGTH;
+        if (newTrackPartDetected) {
+            finishCurrentTrackPart();
+            startNewTrackPart();
         }
         currentTrackPart.pushSensorValue(smoothValue,message.getRaw());
+    }
+
+    private void startNewTrackPart() {
+        currentTrackPart = new TrackPart();
+        startTimestamp = System.currentTimeMillis();
+    }
+
+    private void finishCurrentTrackPart() {
+        currentTrackPart.setType(evaluateTrackType(currentTrackPart));
+        currentTrackPart.setDuration(System.currentTimeMillis()-startTimestamp);
+        receiver.tell(new TrackPartRecognizedEvent(currentTrackPart),getSelf());
     }
 
 
@@ -72,9 +97,8 @@ public class TrackPartRecognizer extends UntypedActor {
         return TrackType.UNKNOWN;
     }
 
-    private void evaluateTrackType() {
-        TrackType type = decideTrackPartType(currentTrackPart.getMean());
-        currentTrackPart.setType(type);
+    private TrackType evaluateTrackType(TrackPart trackPart) {
+        return decideTrackPartType(trackPart.getMean());
     }
 
 }

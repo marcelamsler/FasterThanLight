@@ -30,6 +30,7 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     private boolean trackRecognized = false;
     private int currentPower = 20;
     private final long maxRoundTime = 100000000;
+    private boolean firstRound = true;
 
     private int measuringPower = 110;
     private long lastTimestamp = 0;
@@ -41,17 +42,17 @@ public class ConstantPowerAnalyzer extends UntypedActor {
 
     private FloatingHistory gzDiffHistory = new FloatingHistory(4);
 
-    public static Props props(ActorRef pilotActor, ActorRef trackRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
+    public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
                 ConstantPowerAnalyzer.class, () ->
-                        new ConstantPowerAnalyzer(pilotActor,trackRecognizer, trackAnalyzer, pilotDataEventSender));
+                        new ConstantPowerAnalyzer(pilotActor, pilotDataEventSender));
     }
 
-    public ConstantPowerAnalyzer(ActorRef pilotActor, ActorRef trackPartRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
+    public ConstantPowerAnalyzer(ActorRef pilotActor,PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
-        this.trackPartRecognizer = trackPartRecognizer;
-        this.trackAnalyzer = trackAnalyzer;
+        this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
+        this.trackAnalyzer =  getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
     }
 
     @Override
@@ -71,17 +72,7 @@ public class ConstantPowerAnalyzer extends UntypedActor {
 
     private void handleTrackAnalyzed(TrackAnalyzedEvent message) {
         Track<AnalyzedTrackPart> track = message.getTrack();
-        TrackDesign trackDesign = new TrackDesign();
-
-        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
-            if (analyzedTrackPart.isStraight()){
-                trackDesign.straight(analyzedTrackPart.getLength());
-            }
-            else if(analyzedTrackPart.isCurve()){
-                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
-            }
-        }
-        trackDesign.create();
+        TrackDesign trackDesign = convertTrackForWebsocket(track);
         pilotDataEventSender.sendToAll(trackDesign);
     }
 
@@ -90,13 +81,21 @@ public class ConstantPowerAnalyzer extends UntypedActor {
             track = new Track<>();
         }
         else{
-            trackRecognized = true;
-            trackAnalyzer.tell(new TrackRecognizedEvent(track),getSelf());
+            if(firstRound){
+                firstRound = false;
+            }
+            else {
+                trackRecognized = true;
+                trackAnalyzer.tell(new TrackRecognizedEvent(track), getSelf());
+            }
         }
     }
 
     private void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-        track.addTrackPart(message.getPart());
+        if(!firstRound) {
+            track.addTrackPart(message.getPart());
+        }
+        System.out.println(message.getPart().getDuration());
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
     }
 
@@ -142,6 +141,21 @@ public class ConstantPowerAnalyzer extends UntypedActor {
     private int increase(int val) {
         currentPower = currentPower + val;
         return currentPower;
+    }
+
+    private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {
+        TrackDesign trackDesign = new TrackDesign();
+
+        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
+            if (analyzedTrackPart.isStraight()){
+                trackDesign.straight(analyzedTrackPart.getLength());
+            }
+            else if(analyzedTrackPart.isCurve()){
+                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
+            }
+        }
+        trackDesign.create();
+        return trackDesign;
     }
 
     private boolean iAmStillStanding() {
