@@ -6,6 +6,7 @@ import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
+import com.zuehlke.carrera.javapilot.model.AnalyzedTrackPart;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
@@ -14,7 +15,6 @@ import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
-import com.zuehlke.carrera.timeseries.FloatingHistory;
 
 public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
@@ -25,31 +25,31 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private boolean trackRecognized = false;
     private int currentPower = 20;
     private final long maxRoundTime = 100000000;
+    private boolean firstRound  = true;
 
     private int measuringPower = 200;
     private long lastTimestamp = 0;
 
     private PowerStrategyInterface powerStrategy;
 
-    private Track<TrackPart> analyzedTrack = new Track<>();
+    private Track<TrackPart> recognizedTrack = new Track<>();
+    private Track<AnalyzedTrackPart> analyzedTrack = new Track<>();
 
     private LowPassFilter lowPassFilter = new LowPassFilter();
 
-    private FloatingHistory gzDiffHistory = new FloatingHistory(4);
-
-    public static Props props(ActorRef pilotActor, ActorRef trackRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
+    public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
                 ChangeStrategyAfterAnalyzing.class, () ->
-                        new ChangeStrategyAfterAnalyzing(pilotActor,trackRecognizer, trackAnalyzer, pilotDataEventSender));
+                        new ChangeStrategyAfterAnalyzing(pilotActor, pilotDataEventSender));
     }
 
-    public ChangeStrategyAfterAnalyzing(ActorRef pilotActor, ActorRef trackPartRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
+    public ChangeStrategyAfterAnalyzing(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
-        this.trackPartRecognizer = trackPartRecognizer;
-        this.trackAnalyzer = trackAnalyzer;
+        this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));;
+        this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
 
-        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, getSelf(), gzDiffHistory, analyzedTrack);
+        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, getSelf(), recognizedTrack);
     }
 
     @Override
@@ -65,7 +65,9 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         } else if ( message instanceof PenaltyMessage) {
             handlePenaltyMessage ( (PenaltyMessage) message );
         }else if (message instanceof TrackAnalyzedEvent){
-            powerStrategy.handleTrackAnalyzed((TrackAnalyzedEvent) message);
+            TrackAnalyzedEvent trackAnalyzedEvent = (TrackAnalyzedEvent) message;
+            analyzedTrack = trackAnalyzedEvent.getTrack();
+            powerStrategy.handleTrackAnalyzed(trackAnalyzedEvent);
         }
     }
 
@@ -73,17 +75,20 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     }
 
     private void handleRaceStart() {
-        trackRecognized = true;
-        trackAnalyzer.tell(new TrackRecognizedEvent(analyzedTrack),getSelf());
     }
 
     private void handleRoundTime(RoundTimeMessage message) {
         if(message.getRoundDuration() > maxRoundTime) {
-            analyzedTrack = new Track<>();
+            recognizedTrack = new Track<>();
         }
         else{
-            trackRecognized = true;
-            trackAnalyzer.tell(new TrackRecognizedEvent(analyzedTrack),getSelf());
+            if(firstRound){
+                firstRound = false;
+            }
+            else {
+                trackRecognized = true;
+                trackAnalyzer.tell(new TrackRecognizedEvent(recognizedTrack), getSelf());
+            }
         }
     }
 

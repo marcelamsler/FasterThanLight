@@ -26,38 +26,29 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     private int currentPower;
     private int defaultPower = 130;
     private ActorRef sender;
-    private FloatingHistory gzDiffHistory;
-    private Track<TrackPart> analyzedTrack;
+    private FloatingHistory gzDiffHistory ;
+    private Track<TrackPart> recognizedTrack;
 
-    public ConstantPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, LowPassFilter lowPassFilter, ActorRef trackPartRecognizer, ActorRef sender, FloatingHistory gzDiffHistory, Track<TrackPart> analyzedTrack) {
+    public ConstantPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, LowPassFilter lowPassFilter, ActorRef trackPartRecognizer, ActorRef sender, Track<TrackPart> recognizedTrack) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.lowPassFilter = lowPassFilter;
         this.trackPartRecognizer = trackPartRecognizer;
         this.sender = sender;
-        this.gzDiffHistory = gzDiffHistory;
-        this.analyzedTrack = analyzedTrack;
+        this.gzDiffHistory = new FloatingHistory(4);
+        this.recognizedTrack = recognizedTrack;
     }
 
     @Override
     public void handleTrackAnalyzed(final TrackAnalyzedEvent message) {
-        Track<AnalyzedTrackPart> track = message.getTrack();
-        TrackDesign trackDesign = new TrackDesign();
-
-        for (AnalyzedTrackPart analyzedTrackPart : track.getTrackParts()) {
-            if (analyzedTrackPart.isStraight()) {
-                trackDesign.straight(analyzedTrackPart.getLength());
-            } else if (analyzedTrackPart.isCurve()) {
-                trackDesign.curve(analyzedTrackPart.getRadius(), analyzedTrackPart.getAngle());
-            }
-        }
-        trackDesign.create();
+        Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
+        TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
         pilotDataEventSender.sendToAll(trackDesign);
     }
 
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-        analyzedTrack.addTrackPart(message.getPart());
+        recognizedTrack.addTrackPart(message.getPart());
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
     }
 
@@ -96,9 +87,26 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
         }
     }
 
+
+    private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {
+        TrackDesign trackDesign = new TrackDesign();
+
+        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
+            if (analyzedTrackPart.isStraight()){
+                trackDesign.straight(analyzedTrackPart.getLength());
+            }
+            else if(analyzedTrackPart.isCurve()){
+                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
+            }
+        }
+        trackDesign.create();
+        return trackDesign;
+    }
+
+
     @Override
     public int increase(int val) {
-        currentPower = currentPower + val;
+        currentPower += val;
         return currentPower;
     }
 
