@@ -16,7 +16,7 @@ import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
-public class Schumacher extends UntypedActor {
+public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
     private final ActorRef trackPartRecognizer;
@@ -39,11 +39,11 @@ public class Schumacher extends UntypedActor {
 
     public static Props props(ActorRef pilotActor, ActorRef trackRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
-                Schumacher.class, () ->
-                        new Schumacher(pilotActor,trackRecognizer, trackAnalyzer, pilotDataEventSender));
+                ChangeStrategyAfterAnalyzing.class, () ->
+                        new ChangeStrategyAfterAnalyzing(pilotActor,trackRecognizer, trackAnalyzer, pilotDataEventSender));
     }
 
-    public Schumacher(ActorRef pilotActor, ActorRef trackPartRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
+    public ChangeStrategyAfterAnalyzing(ActorRef pilotActor, ActorRef trackPartRecognizer, ActorRef trackAnalyzer, PilotDataEventSender pilotDataEventSender) {
         this.pilotActor = pilotActor;
         this.pilotDataEventSender = pilotDataEventSender;
         this.trackPartRecognizer = trackPartRecognizer;
