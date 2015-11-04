@@ -77,6 +77,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
         TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
         pilotDataEventSender.sendToAll(trackDesign);
+        powerStrategy = new SchumacherPowerStrategy(pilotDataEventSender, pilotActor, lowPassFilter, trackPartRecognizer, getSelf(), recognizedTrack);
     }
 
     private void handlePenaltyMessage(PenaltyMessage message) {

@@ -27,19 +27,14 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private Track<TrackPart> analyzedTrack;
     private Track<TrackPart> currentTrack;
 
-    public SchumacherPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, LowPassFilter lowPassFilter, ActorRef trackPartRecognizer, ActorRef sender, FloatingHistory gzDiffHistory, Track<TrackPart> analyzedTrack) {
+    public SchumacherPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, LowPassFilter lowPassFilter, ActorRef trackPartRecognizer, ActorRef sender, Track<TrackPart> analyzedTrack) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.lowPassFilter = lowPassFilter;
         this.trackPartRecognizer = trackPartRecognizer;
         this.sender = sender;
-        this.gzDiffHistory = gzDiffHistory;
+        this.gzDiffHistory = new FloatingHistory(4);
         this.analyzedTrack = analyzedTrack;
-    }
-
-    @Override
-    public void handleTrackAnalyzed(TrackAnalyzedEvent message) {
-
     }
 
     @Override

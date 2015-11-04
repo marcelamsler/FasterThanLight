@@ -3,9 +3,7 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.model.AnalyzedTrackPart;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
@@ -13,7 +11,6 @@ import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
-import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
 @SuppressWarnings("ALL")
