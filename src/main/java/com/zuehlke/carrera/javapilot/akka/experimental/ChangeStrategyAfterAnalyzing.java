@@ -3,6 +3,8 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
+import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
@@ -11,6 +13,7 @@ import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
+import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
@@ -56,7 +59,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     @Override
     public void onReceive(Object message) throws Exception {
         if (message instanceof SensorEvent) {
-            powerStrategy.handleSensorEvent((SensorEvent) message, lastTimestamp, timestampDelayThreshold);
+            handleSensorEvent((SensorEvent) message, lastTimestamp, timestampDelayThreshold);
         } else if (message instanceof RaceStartMessage) {
             handleRaceStart();
         } else if (message instanceof TrackPartRecognizedEvent){
@@ -72,7 +75,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         }
     }
 
-    public void handleTrackAnalyzed(final TrackAnalyzedEvent message) {
+    public void handleTrackAnalyzed(TrackAnalyzedEvent message) {
         Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
         TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
         pilotDataEventSender.sendToAll(trackDesign);
@@ -80,6 +83,24 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     }
 
     private void handlePenaltyMessage(PenaltyMessage message) {
+    }
+    public void handleSensorEvent(SensorEvent message, long lastTimestamp, long timestampDelayThreshold) {
+        boolean obsoleteMessage = message.getTimeStamp() < lastTimestamp;
+
+        if (obsoleteMessage) {
+            return;
+        }
+
+        double gz = message.getG()[2];
+        powerStrategy.getGzDiffHistory().shift(gz);
+
+        double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
+        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
+
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
+        pilotDataEventSender.sendToAll(smoothedSensorData);
+
+        powerStrategy.handleSensorEvent(message, lastTimestamp, timestampDelayThreshold);
     }
 
     private void handleRaceStart() {

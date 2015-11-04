@@ -3,6 +3,7 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.timeseries.FloatingHistory;
 
 public interface PowerStrategyInterface {
 
@@ -13,4 +14,6 @@ public interface PowerStrategyInterface {
     int increase(int val);
 
     boolean iAmStillStanding();
+
+    FloatingHistory getGzDiffHistory();
 }

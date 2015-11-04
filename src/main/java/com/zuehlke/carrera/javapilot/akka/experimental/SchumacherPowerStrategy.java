@@ -3,7 +3,6 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
@@ -20,8 +19,8 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private ActorRef pilotActor;
     private LowPassFilter lowPassFilter;
     private ActorRef trackPartRecognizer;
-    private int currentPower;
     private int defaultPower = 200;
+    private int currentPower = defaultPower;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
     private Track<TrackPart> analyzedTrack;
@@ -60,7 +59,6 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
         SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
-        currentPower = defaultPower;
         pilotActor.tell(new PowerAction(currentPower), sender);
 
     }
@@ -74,5 +72,10 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     @Override
     public boolean iAmStillStanding() {
         return gzDiffHistory.currentStDev() < 3;
+    }
+
+    @Override
+    public FloatingHistory getGzDiffHistory() {
+        return gzDiffHistory;
     }
 }
