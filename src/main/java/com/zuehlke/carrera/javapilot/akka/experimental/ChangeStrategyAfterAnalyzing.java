@@ -29,6 +29,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private PilotDataEventSender pilotDataEventSender;
 
     private long lastTimestamp = 0;
+    private int currentPower = 20;
 
     private PowerStrategyInterface powerStrategy;
 
