@@ -3,7 +3,7 @@
 
 angular.module('simulator')
 
-    .controller('simulatorCtrl', function ($scope, $routeParams, Simulator, ngstomp) {
+    .controller('simulatorCtrl', function ($scope, $routeParams, Simulator, ngstomp, Recording) {
 
         $scope.isSimulatorRunning = false;
         $scope.doesExist = false;
@@ -13,6 +13,7 @@ angular.module('simulator')
         $scope.availableDesigns = [ $scope.selectedDesign, "Berlin", "Oerlikon", "Hollywood", "Kuwait","Test Track", "Inner Test Track"];
 
         $scope.connected = false;
+        $scope.isRecording = false;
 
         $scope.roundNumber = 1;
         $scope.scaleFactor = 4;
@@ -172,11 +173,23 @@ angular.module('simulator')
             });
         };
 
-        $scope.startClock = function() {
-            Simulator.start({}, function( response) {
-                console.log("simulator activated.");
-                $scope.timerOn = true;
+        /**
+         * Recording Related Function
+         */
+        $scope.startRecording = function() {
+            var givenName = prompt("Recording name");
+            Recording.start({name: givenName}, function(response){
+                console.log("Started recording.");
+                $scope.isRecording = true;
             });
+        };
+
+        $scope.stopRecording = function() {
+            Recording.stop({}, function(response){
+                console.log("Stopped recording.");
+                $scope.isRecording = false;
+            });
+
         };
 
         $scope.stopClock = function() {

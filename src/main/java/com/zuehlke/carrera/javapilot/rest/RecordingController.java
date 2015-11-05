@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/recording/")
+@RequestMapping("/api/recording")
 public class RecordingController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RecordingController.class);
@@ -17,13 +17,18 @@ public class RecordingController {
     @Autowired
     public RecordingService recordingService;
 
-    @RequestMapping(value="/start", method = RequestMethod.GET,  produces = "application/json")
-    public String start() {
+    @RequestMapping(value="/start", method = RequestMethod.GET)
+    public void start(String name) {
         LOGGER.info("start recording");
 
-        recordingService.startRecording();
+        recordingService.startRecording(name);
+    }
 
-        return "ok";
+    @RequestMapping(value="/stop", method = RequestMethod.GET)
+    public void stop() {
+        LOGGER.info("start recording");
+
+        recordingService.stopAndSave();
     }
 
 }
