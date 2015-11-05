@@ -37,7 +37,9 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-        recognizedTrack.addTrackPart(message.getPart());
+        if(!firstRound) {
+            recognizedTrack.addTrackPart(message.getPart());
+        }
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
     }
 

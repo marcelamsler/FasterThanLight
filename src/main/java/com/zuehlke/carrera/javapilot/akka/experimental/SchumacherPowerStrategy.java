@@ -11,6 +11,7 @@ import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,12 +19,13 @@ import java.util.UUID;
 
 public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
-    public static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 3;
+    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(SchumacherPowerStrategy.class);
+    public static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 4;
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.95;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
-    private int defaultPower = 200;
+    private int defaultPower = 230;
     private int defaultPowerBeforePenalty = 180;
     private int currentPower = defaultPower;
     private ActorRef sender;
@@ -54,6 +56,8 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
         if (lastTrackPart != null) {
             if (learningMap.containsKey(lastTrackPart.id)) {
                 currentPower = learningMap.get(lastTrackPart.id);
+            } else {
+                currentPower = defaultPower;
             }
         }
 
@@ -61,7 +65,13 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     }
 
     private TrackPart findCurrentPositionInAnalyzedTrack() {
-        ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
+        ArrayList<TrackPart> lastTrackParts = currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE);
+
+        ArrayList<TrackPart> lastMatchingTrackParts = null;
+        if (lastTrackParts.size() == COUNT_OF_TRACKPARTS_TO_COMPARE) {
+            lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(lastTrackParts);
+        }
+
 
         if (lastMatchingTrackParts != null && !lastMatchingTrackParts.isEmpty()) {
             return lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
@@ -73,23 +83,25 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     private ArrayList<TrackPart> findTrackPartsInAnalyzedTrack(ArrayList<TrackPart> currentTrackParts) {
         ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
-        for(TrackPart analyzedTrackPart : analyzedTrackParts) {
+
+        for(int i = 0; i < analyzedTrackParts.size(); i++) {
             boolean patternMatches = true;
-            for(TrackPart currentTrackPart : currentTrackParts ) {
-                if (!couldBeSameTrackPart(analyzedTrackPart, currentTrackPart)) {
+            for (int j = 0; j < currentTrackParts.size(); j++) {
+                if (i + j < analyzedTrackParts.size() && !couldBeSameTrackPart(analyzedTrackParts.get(i + j), currentTrackParts.get(j))) {
                     patternMatches = false;
                     break;
                 }
             }
-            if (patternMatches) {
-                int indexOfCurrentTrackPart = analyzedTrackParts.indexOf(analyzedTrackPart);
-                int indexOfLastWantedTrackPart = indexOfCurrentTrackPart + currentTrackParts.size();
 
-                if (indexOfLastWantedTrackPart > analyzedTrackParts.size() - 1) {
-                    indexOfLastWantedTrackPart = analyzedTrackParts.size() - 1;
+            if (patternMatches) {
+                LOGGER.info("=> found matching pattern of trackparts");
+                int indexOfLastWantedTrackPart = i + currentTrackParts.size();
+
+                if (indexOfLastWantedTrackPart > analyzedTrackParts.size()) {
+                    indexOfLastWantedTrackPart = analyzedTrackParts.size();
                 }
 
-                return new ArrayList<>(analyzedTrackParts.subList(indexOfCurrentTrackPart, indexOfLastWantedTrackPart));
+                return new ArrayList<>(analyzedTrackParts.subList(i, indexOfLastWantedTrackPart));
             }
 
         }
@@ -97,8 +109,8 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType() &&
-                hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+        return analyzedTrackPart.getType() == currentTrackPart.getType();
+//                && hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameSize(int constantPowerDuration, int racePowerDuration) {
@@ -132,10 +144,11 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     @Override
     public void handlePenaltyMessage(PenaltyMessage message) {
+        LOGGER.info("=> Handly penalty {}", message.toString());
         ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
         TrackPart beforePenaltyTrackPart = null;
-        if (lastMatchingTrackParts != null) {
+        if (lastMatchingTrackParts != null && !lastMatchingTrackParts.isEmpty()) {
             beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
         }
 

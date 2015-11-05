@@ -1,7 +1,6 @@
 package com.zuehlke.carrera.javapilot.model;
 
 import java.util.ArrayList;
-import java.util.List;
 
 
 public class Track<T extends TrackPart> {
