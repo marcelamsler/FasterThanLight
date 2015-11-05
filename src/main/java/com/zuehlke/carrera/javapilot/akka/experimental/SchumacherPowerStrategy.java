@@ -20,12 +20,12 @@ import java.util.UUID;
 public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(SchumacherPowerStrategy.class);
-    public static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 4;
+    public static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.95;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
-    private int defaultPower = 230;
+    private int defaultPower = 256;
     private int defaultPowerBeforePenalty = 180;
     private int currentPower = defaultPower;
     private ActorRef sender;
@@ -109,13 +109,13 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType();
-//                && hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+        return analyzedTrackPart.getType() == currentTrackPart.getType()
+                && hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameSize(int constantPowerDuration, int racePowerDuration) {
-        double maxSlowerRatio = 0.5;
-        double maxFasterRatio = 3.0;
+        double maxSlowerRatio = 0.7;
+        double maxFasterRatio = 1.5;
         return racePowerDuration > constantPowerDuration * maxSlowerRatio &&
             racePowerDuration < constantPowerDuration * maxFasterRatio;
     }
