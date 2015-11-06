@@ -58,7 +58,7 @@
                         ng-options="option for option in availableDesigns"></select>
 
                 <button class="btn btn-primary btn-xs" ng-click="startRecording()" ng-show="connected" ng-disabled="isRecording" >Start recording </button>
-                <button class="btn btn-primary btn-xs" ng-click="stopRecording()" ng-show="connected">Stop recording </button>
+                <button class="btn btn-primary btn-xs" ng-click="stopRecording()" ng-show="connected" ng-disabled="!isRecording">Stop recording </button>
 
             </div>
         </div>
