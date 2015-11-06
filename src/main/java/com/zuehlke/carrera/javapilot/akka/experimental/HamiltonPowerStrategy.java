@@ -24,7 +24,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.90;
     private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
     private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
-    private static final int INCREASE_AFTER_PENALTY_FREE_ROUND = 4;
+    private static final int INCREASE_AFTER_PENALTY_FREE_ROUND = 8;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
@@ -163,9 +163,9 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
         if (roundWithoutPenalties) {
 
             for (UUID key : learningMap.keySet()) {
-                learningMap.put(key, learningMap.get(key) +  INCREASE_AFTER_PENALTY_FREE_ROUND);
+                learningMap.put(key, learningMap.get(key));
             }
-            defaultPower += 12;
+            defaultPower += INCREASE_AFTER_PENALTY_FREE_ROUND ;
             LOGGER.info("=> Increase Speed{}", defaultPower);
         }
 
