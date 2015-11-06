@@ -23,6 +23,7 @@ public class JavaPilotActor extends UntypedActor {
     private final Logger LOGGER = LoggerFactory.getLogger(JavaPilotActor.class);
     private final PilotProperties properties;
     private PilotDataEventSender pilotDataEventSender;
+    private ActorRef recordingActor;
 
     private ActorRef sensorEntryPoint;
     private ActorRef velocityEntryPoint;
@@ -30,9 +31,10 @@ public class JavaPilotActor extends UntypedActor {
 
     private PilotToRelayConnection relayConnection;
 
-    public JavaPilotActor(PilotProperties properties, PilotDataEventSender pilotDataEventSender) {
+    public JavaPilotActor(PilotProperties properties, PilotDataEventSender pilotDataEventSender, ActorRef recordingActor) {
         this.properties = properties;
         this.pilotDataEventSender = pilotDataEventSender;
+        this.recordingActor = recordingActor;
 
         createTopology ();
     }
@@ -46,13 +48,13 @@ public class JavaPilotActor extends UntypedActor {
     }
 
 
-    public static Props props(PilotProperties properties, PilotDataEventSender pilotDataEventSender) {
+    public static Props props(PilotProperties properties, PilotDataEventSender pilotDataEventSender, ActorRef recordingActor) {
         return Props.create(new Creator<JavaPilotActor>() {
             private static final long serialVersionUID = 1L;
 
             @Override
             public JavaPilotActor create() throws Exception {
-                return new JavaPilotActor( properties, pilotDataEventSender );
+                return new JavaPilotActor( properties, pilotDataEventSender, recordingActor );
             }
         });
     }
@@ -60,6 +62,12 @@ public class JavaPilotActor extends UntypedActor {
 
     @Override
     public void onReceive(Object message) throws Exception {
+        try {
+            recordingActor.tell(message, getSelf());
+        } catch (Exception e) {
+            LOGGER.warn("Something went wrong - ignore it", e);
+        }
+
 
         try {
 

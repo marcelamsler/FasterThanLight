@@ -1,7 +1,6 @@
 package com.zuehlke.carrera.javapilot.services;
 
-import akka.actor.ActorRef;
-import akka.actor.ActorSystem;
+import akka.actor.*;
 import com.zuehlke.carrera.javapilot.akka.JavaPilotActor;
 import com.zuehlke.carrera.javapilot.config.PilotProperties;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
@@ -28,6 +27,7 @@ public class PilotService {
     private final ActorSystem system;
     private final ActorRef pilotActor;
     private final String endPointUrl;
+    private final ActorRef recordingActor;
 
     @Autowired
     public PilotService(PilotProperties settings, EndpointService endpointService,
@@ -36,7 +36,9 @@ public class PilotService {
         this.settings = settings;
         this.endPointUrl = endpointService.getHttpEndpoint();
         system = ActorSystem.create(settings.getName());
-        pilotActor = system.actorOf(JavaPilotActor.props(settings, pilotDataEventSender));
+
+        recordingActor = system.actorOf(RecordingActor.create());
+        pilotActor = system.actorOf(JavaPilotActor.props(settings, pilotDataEventSender, recordingActor));
 
         // Simulator learns about the pilot
         simulatorService.registerPilot(pilotActor);
@@ -88,5 +90,9 @@ public class PilotService {
 
     public ActorRef getPilotActor() {
         return pilotActor;
+    }
+
+    public ActorRef getRecordingActor() {
+        return recordingActor;
     }
 }

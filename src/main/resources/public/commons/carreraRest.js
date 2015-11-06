@@ -19,5 +19,15 @@ angular.module('carrera.commons.rest')
             selectDesign: {method: 'POST', params: {controller: 'selectDesign'}, isArray: false}
         });
     }])
+
+.factory('Recording', ['$resource',
+    function($resource){
+        return $resource('/api/recording/:controller', {}, {
+            start: {method:'GET', params:{controller:'start'}, isArray:false},
+            stop: {method:'GET', params:{controller:'stop'}, isArray:false},
+        });
+    }])
+
+
 ;
 
