@@ -172,4 +172,9 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     public FloatingHistory getGzDiffHistory() {
         return gzDiffHistory;
     }
+
+    @Override
+    public int getCurrentPower() {
+        return currentPower;
+    }
 }

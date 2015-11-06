@@ -55,6 +55,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
 
     @Override
     public void onReceive(Object message) throws Exception {
+
         if (message instanceof SensorEvent) {
             handleSensorEvent((SensorEvent) message, lastTimestamp, timestampDelayThreshold);
         } else if (message instanceof RaceStartMessage) {
@@ -93,7 +94,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
         trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
 
-        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, currentPower);
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, powerStrategy.getCurrentPower());
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
         powerStrategy.handleSensorEvent(message, lastTimestamp, timestampDelayThreshold);

@@ -21,4 +21,6 @@ public interface PowerStrategyInterface {
     FloatingHistory getGzDiffHistory();
 
     void handlePenaltyMessage(PenaltyMessage message);
+
+    int getCurrentPower();
 }

@@ -88,4 +88,8 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     public void handlePenaltyMessage(PenaltyMessage message) {
 
     }
+    @Override
+    public int getCurrentPower() {
+        return currentPower;
+    }
 }
