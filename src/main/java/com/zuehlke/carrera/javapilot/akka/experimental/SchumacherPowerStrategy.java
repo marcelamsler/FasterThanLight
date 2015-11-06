@@ -20,8 +20,10 @@ import java.util.UUID;
 public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(SchumacherPowerStrategy.class);
-    public static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.95;
+    private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
+    private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
@@ -33,6 +35,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private Track<TrackPart> analyzedTrack;
     private Track<TrackPart> currentTrack = new Track<>();
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
+    boolean roundWithoutPenalties;
 
 
     public SchumacherPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
@@ -41,6 +44,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(4);
         this.analyzedTrack = analyzedTrack;
+        analyzedTrack.getTrackParts().addAll(analyzedTrack.getTrackParts().subList(0, COUNT_OF_TRACKPARTS_TO_COMPARE));
     }
 
     @Override
@@ -84,6 +88,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private ArrayList<TrackPart> findTrackPartsInAnalyzedTrack(ArrayList<TrackPart> currentTrackParts) {
         ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
 
+
         for(int i = 0; i < analyzedTrackParts.size(); i++) {
             boolean patternMatches = true;
             for (int j = 0; j < currentTrackParts.size(); j++) {
@@ -100,7 +105,6 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
                 if (indexOfLastWantedTrackPart > analyzedTrackParts.size()) {
                     indexOfLastWantedTrackPart = analyzedTrackParts.size();
                 }
-
                 return new ArrayList<>(analyzedTrackParts.subList(i, indexOfLastWantedTrackPart));
             }
 
@@ -109,42 +113,20 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType()
-                && hasAboutSameSize(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+        return analyzedTrackPart.getType() == currentTrackPart.getType();
+//                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
-    private boolean hasAboutSameSize(int constantPowerDuration, int racePowerDuration) {
-        double maxSlowerRatio = 0.7;
-        double maxFasterRatio = 1.5;
-        return racePowerDuration > constantPowerDuration * maxSlowerRatio &&
-            racePowerDuration < constantPowerDuration * maxFasterRatio;
+    private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
+        return racePowerDuration > constantPowerDuration * MAX_SLOWER_RATIO_OF_RACE_TRACKPART &&
+            racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
     }
 
-
-    @Override
-    public void handleRoundTime(RoundTimeMessage message) {
-
-    }
-
-    @Override
-    public int increase(int val) {
-        currentPower = currentPower + val;
-        return currentPower;
-    }
-
-    @Override
-    public boolean iAmStillStanding() {
-        return gzDiffHistory.currentStDev() < 3;
-    }
-
-    @Override
-    public FloatingHistory getGzDiffHistory() {
-        return gzDiffHistory;
-    }
 
     @Override
     public void handlePenaltyMessage(PenaltyMessage message) {
-        LOGGER.info("=> Handly penalty {}", message.toString());
+        roundWithoutPenalties = false;
+        LOGGER.info("=> Handle penalty {}", message.toString());
         ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
         TrackPart beforePenaltyTrackPart = null;
@@ -161,5 +143,33 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
                 learningMap.put(beforePenaltyTrackPart.id, defaultPowerBeforePenalty);
             }
         }
+    }
+
+    @Override
+    public void handleRoundTime(RoundTimeMessage message) {
+
+        if (roundWithoutPenalties) {
+            for(int value : learningMap.values()) {
+                value += 5;
+            }
+        }
+
+        roundWithoutPenalties = true;
+    }
+
+    @Override
+    public int increase(int val) {
+        currentPower = currentPower + val;
+        return currentPower;
+    }
+
+    @Override
+    public boolean iAmStillStanding() {
+        return gzDiffHistory.currentStDev() < 3;
+    }
+
+    @Override
+    public FloatingHistory getGzDiffHistory() {
+        return gzDiffHistory;
     }
 }
