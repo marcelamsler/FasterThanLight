@@ -24,18 +24,19 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.95;
     private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
     private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
+    private static final int INCREASE_AFTER_PENALTY_FREE_ROUND = 10;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
-    private int defaultPower = 256;
-    private int defaultPowerBeforePenalty = 180;
+    private int defaultPower = 200;
+    private int defaultPowerBeforePenalty = 150;
     private int currentPower = defaultPower;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
     private Track<TrackPart> currentTrack = new Track<>();
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
     boolean roundWithoutPenalties;
-    private ArrayList<ArrayList<TrackPart>> recordedCombinations;
+    private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
 
 
     public HamiltonPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
@@ -43,7 +44,6 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
         this.pilotActor = pilotActor;
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(4);
-        analyzedTrack.getTrackParts().addAll(analyzedTrack.getTrackParts().subList(0, COUNT_OF_TRACKPARTS_TO_COMPARE));
     }
 
     @Override
@@ -58,6 +58,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
         if (lastTrackPart != null) {
             if (learningMap.containsKey(lastTrackPart.id)) {
+
                 currentPower = learningMap.get(lastTrackPart.id);
             } else {
                 currentPower = defaultPower;
@@ -105,8 +106,8 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType();
-//                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+        return analyzedTrackPart.getType() == currentTrackPart.getType()
+                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
@@ -124,14 +125,16 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
         ArrayList<TrackPart> lastMatchingTrackParts = findTracksInRecordedCombinations(lastTrackParts);
 
-        if (lastMatchingTrackParts == null && lastMatchingTrackParts.isEmpty()) {
+        if ((lastMatchingTrackParts == null || lastMatchingTrackParts.isEmpty()) && lastTrackParts.size() > 0) {
             recordedCombinations.add(lastTrackParts);
             lastMatchingTrackParts = lastTrackParts;
         }
 
-        TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+        if (lastMatchingTrackParts.size() > 1) {
+            TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+            ReduceSpeedForTrackPart(beforePenaltyTrackPart);
+        }
 
-        ReduceSpeedForTrackPart(beforePenaltyTrackPart);
     }
 
     private void ReduceSpeedForTrackPart(TrackPart beforePenaltyTrackPart) {
@@ -150,9 +153,10 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     public void handleRoundTime(RoundTimeMessage message) {
 
         if (roundWithoutPenalties) {
-            for (int value : learningMap.values()) {
-                value += 5;
+            for (UUID key : learningMap.keySet()) {
+                learningMap.put(key, learningMap.get(key) +  INCREASE_AFTER_PENALTY_FREE_ROUND);
             }
+            defaultPower += 15;
         }
 
         roundWithoutPenalties = true;
