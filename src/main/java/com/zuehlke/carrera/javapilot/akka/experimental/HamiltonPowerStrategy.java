@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class SchumacherPowerStrategy implements PowerStrategyInterface{
+public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
     private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
@@ -32,18 +32,17 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     private int currentPower = defaultPower;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
-    private Track<TrackPart> analyzedTrack;
     private Track<TrackPart> currentTrack = new Track<>();
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
     boolean roundWithoutPenalties;
+    private ArrayList<ArrayList<TrackPart>> recordedCombinations;
 
 
-    public SchumacherPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
+    public HamiltonPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(4);
-        this.analyzedTrack = analyzedTrack;
         analyzedTrack.getTrackParts().addAll(analyzedTrack.getTrackParts().subList(0, COUNT_OF_TRACKPARTS_TO_COMPARE));
     }
 
@@ -73,7 +72,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
         ArrayList<TrackPart> lastMatchingTrackParts = null;
         if (lastTrackParts.size() == COUNT_OF_TRACKPARTS_TO_COMPARE) {
-            lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(lastTrackParts);
+            lastMatchingTrackParts = findTracksInRecordedCombinations(lastTrackParts);
         }
 
 
@@ -85,14 +84,11 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     }
 
-    private ArrayList<TrackPart> findTrackPartsInAnalyzedTrack(ArrayList<TrackPart> currentTrackParts) {
-        ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
-
-
-        for(int i = 0; i < analyzedTrackParts.size(); i++) {
+    private ArrayList<TrackPart> findTracksInRecordedCombinations(ArrayList<TrackPart> currentTrackParts) {
+        for (ArrayList<TrackPart> combination : recordedCombinations) {
             boolean patternMatches = true;
-            for (int j = 0; j < currentTrackParts.size(); j++) {
-                if (i + j < analyzedTrackParts.size() && !couldBeSameTrackPart(analyzedTrackParts.get(i + j), currentTrackParts.get(j))) {
+            for (int i = 0; i < combination.size(); i++) {
+                if (!couldBeSameTrackPart(combination.get(i), currentTrackParts.get(i))) {
                     patternMatches = false;
                     break;
                 }
@@ -100,21 +96,17 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
             if (patternMatches) {
                 LOGGER.info("=> found matching pattern of trackparts");
-                int indexOfLastWantedTrackPart = i + currentTrackParts.size();
-
-                if (indexOfLastWantedTrackPart > analyzedTrackParts.size()) {
-                    indexOfLastWantedTrackPart = analyzedTrackParts.size();
-                }
-                return new ArrayList<>(analyzedTrackParts.subList(i, indexOfLastWantedTrackPart));
+                return combination;
             }
 
         }
+
         return null;
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType()
-               && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+        return analyzedTrackPart.getType() == currentTrackPart.getType();
+//                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
@@ -127,14 +119,23 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     public void handlePenaltyMessage(PenaltyMessage message) {
         roundWithoutPenalties = false;
         LOGGER.info("=> Handle penalty {}", message.toString());
-        ArrayList<TrackPart> lastMatchingTrackParts = findTrackPartsInAnalyzedTrack(currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE));
 
-        TrackPart beforePenaltyTrackPart = null;
-        if (lastMatchingTrackParts != null && !lastMatchingTrackParts.isEmpty()) {
-            beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+        ArrayList<TrackPart> lastTrackParts = currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE);
+
+        ArrayList<TrackPart> lastMatchingTrackParts = findTracksInRecordedCombinations(lastTrackParts);
+
+        if (lastMatchingTrackParts == null && lastMatchingTrackParts.isEmpty()) {
+            recordedCombinations.add(lastTrackParts);
+            lastMatchingTrackParts = lastTrackParts;
         }
 
-        if(beforePenaltyTrackPart != null) {
+        TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+
+        ReduceSpeedForTrackPart(beforePenaltyTrackPart);
+    }
+
+    private void ReduceSpeedForTrackPart(TrackPart beforePenaltyTrackPart) {
+        if (beforePenaltyTrackPart != null) {
             UUID trackPartId = beforePenaltyTrackPart.id;
             if (learningMap.containsKey(trackPartId)) {
                 int reducedPowerValue = (int) Math.round(learningMap.get(trackPartId) * REDUCE_SPEED_RATIO_AFTER_PENALTY);
@@ -149,7 +150,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     public void handleRoundTime(RoundTimeMessage message) {
 
         if (roundWithoutPenalties) {
-            for(int value : learningMap.values()) {
+            for (int value : learningMap.values()) {
                 value += 5;
             }
         }
