@@ -49,8 +49,8 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         this.pilotDataEventSender = pilotDataEventSender;
         this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
-//        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, trackAnalyzer, getSelf(), recognizedTrack);
-        powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
+        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, trackAnalyzer, getSelf(), recognizedTrack);
+//        powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
     }
 
     @Override
