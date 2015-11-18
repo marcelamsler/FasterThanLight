@@ -40,7 +40,7 @@ public class PilotDataEventSender extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         super.afterConnectionEstablished(session);
 
-        LOGGER.info("Connection established with {}", session.getId());
+        //LOGGER.info("Connection established with {}", session.getId());
         sessionIdToOpenSession.put(session.getId(), session);
     }
 
@@ -48,7 +48,7 @@ public class PilotDataEventSender extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         super.afterConnectionClosed(session, status);
 
-        LOGGER.info("Connection closed with {}", session.getId());
+        //LOGGER.info("Connection closed with {}", session.getId());
         sessionIdToOpenSession.remove(session.getId());
     }
 
@@ -76,12 +76,12 @@ public class PilotDataEventSender extends TextWebSocketHandler {
                     new JsonMessage(genericMessage, eventMessageType);
             String outputMessage = gson.toJson(jsonMessage);
 
-            LOGGER.debug("Sending message to all {}", outputMessage);
+            //LOGGER.debug("Sending message to all {}", outputMessage);
             for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
                 webSocketSession.sendMessage(new TextMessage(outputMessage));
             }
         } catch (Exception e) {
-            LOGGER.warn("Something went wrong - call chuck norris: ");
+            //LOGGER.warn("Something went wrong - call chuck norris: ");
         }
     }
 

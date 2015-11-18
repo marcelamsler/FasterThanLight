@@ -3,9 +3,9 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
+import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
@@ -18,20 +18,25 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
     private int currentPower;
-    private int defaultPower = 130;
+    private int defaultPower = 110;
     private ActorRef trackAnalyzer;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory ;
     private Track<TrackPart> recognizedTrack;
     private final long maxRoundTime = 100000000;
     private boolean firstRound  = true;
+    private LowPassFilter lowPassFilter = new LowPassFilter(100);
+    private LowPassFilter crazyPassFilter = new LowPassFilter(60);
+
+    private double sum1 = 0.0;
+    private double sum2 = 0.0;
 
     public ConstantPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef trackAnalyzer, ActorRef sender, Track<TrackPart> recognizedTrack) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.trackAnalyzer = trackAnalyzer;
         this.sender = sender;
-        this.gzDiffHistory = new FloatingHistory(4);
+        this.gzDiffHistory = new FloatingHistory(5);
         this.recognizedTrack = recognizedTrack;
     }
 
@@ -45,6 +50,10 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleSensorEvent(final SensorEvent message, final long lastTimestamp, final long timestampDelayThreshold) {
+
+
+        sum1 += gzDiffHistory.currentStDev();
+
         if (iAmStillStanding()) {
             increase(5);
             pilotActor.tell(new PowerAction(currentPower), sender);
@@ -56,18 +65,13 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleRoundTime(RoundTimeMessage message) {
-        if(message.getRoundDuration() > maxRoundTime) {
-            recognizedTrack.getTrackParts().clear();
-        }
-        else{
-            if(firstRound){
-                firstRound = false;
-            }
-            else {
-                trackAnalyzer.tell(new TrackRecognizedEvent(recognizedTrack), sender);
-            }
+        if(message.getRoundDuration() < maxRoundTime){
+            System.out.println(sum1);
+            sum1 = 0.0;
+            defaultPower += 10;
         }
     }
+
     @Override
     public int increase(int val) {
         currentPower += val;
@@ -86,7 +90,7 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handlePenaltyMessage(PenaltyMessage message) {
-
+        sum1 -=300;
     }
     @Override
     public int getCurrentPower() {

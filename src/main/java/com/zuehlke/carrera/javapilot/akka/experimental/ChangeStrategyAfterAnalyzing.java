@@ -36,7 +36,8 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private Track<TrackPart> recognizedTrack = new Track<>();
     private Track<AnalyzedTrackPart> analyzedTrack = new Track<>();
 
-    private LowPassFilter lowPassFilter = new LowPassFilter();
+    private LowPassFilter lowPassFilter = new LowPassFilter(100);
+    private LowPassFilter crazyPassFilter = new LowPassFilter(150);
 
     public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
@@ -94,10 +95,18 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
         trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
 
-        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, powerStrategy.getCurrentPower());
+
+
+
+        powerStrategy.getGzDiffHistory().currentStDev();
+        double crazyValue = crazyPassFilter.smoothen(powerStrategy.getGzDiffHistory().currentStDev(),message.getTimeStamp());
+
+
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(crazyValue, powerStrategy.getCurrentPower());
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
         powerStrategy.handleSensorEvent(message, lastTimestamp, timestampDelayThreshold);
+        this.lastTimestamp = message.getTimeStamp();
     }
 
     private void handleRaceStart() {
