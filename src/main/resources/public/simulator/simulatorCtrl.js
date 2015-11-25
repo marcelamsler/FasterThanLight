@@ -69,6 +69,9 @@ angular.module('simulator')
         $scope.newsWorking = false;
         $scope.currentTeam = "no Team";
 
+        $scope.colorAtPosition = [];
+        $scope.nextRoundColorId = 0;
+
         $scope.recentSensorValue = function () {
             var vector = $scope.selectedSpec.coord.vector;
             var axis = $scope.selectedSpec.coord.axis;
@@ -146,6 +149,7 @@ angular.module('simulator')
                         $scope.roundNumber = msg.roundNumber;
                         $scope.currentTeam = msg.teamId;
                         $scope.recentNews = msg;
+
                         drawOnCanvas();
                     }
                 });
@@ -451,15 +455,79 @@ angular.module('simulator')
 
         var drawPosition = function ( ctx ) {
 
+
             if ( angular.isDefined ($scope.recentNews.position)) {
                 ctx.fillStyle = "#A04000";
+                // ctx.fillStyle = "rgb(" + $scope.recentNews.currentPower + " , 50, 50)";
                 var r = $scope.width / 2;
                 ctx.beginPath();
                 var posx = $scope.baseAnchor.x + $scope.recentNews.position.posX * $scope.scaleFactor;
                 var posy = $scope.baseAnchor.y + $scope.recentNews.position.posY * $scope.scaleFactor;
                 ctx.arc(posx, posy, r, 2 * Math.PI, false);
                 ctx.fill();
+                pushToColorAtPosition(posx, posy, r);
             }
+
+            $scope.colorAtPosition.forEach(function(colorAntPos){
+                ctx.fillStyle = "rgb(0, " + colorAntPos.power + ",0)";
+                var r = $scope.width / 4;
+                ctx.beginPath();
+                var posx = colorAntPos.x;
+                var posy = colorAntPos.y;
+                ctx.arc(posx, posy, r, 2 * Math.PI, false);
+                ctx.fill();
+            });
+
+            function pushToColorAtPosition(circleX, circleY, radius) {
+                removeOldColorPoints(radius, circleX, circleY);
+
+                // console.log("Before: " + before + " after: " + $scope.colorAtPosition.length + " nextID: " + $scope.nextRoundColorId);
+                $scope.colorAtPosition.push({
+                    x: circleX,
+                    y: circleY,
+                    power: $scope.recentNews.currentPower,
+                    id: $scope.nextRoundColorId
+                });
+
+                // We need the modulo operations, so that it starts again at from 0 after overflow
+                $scope.nextRoundColorId = ($scope.nextRoundColorId + 1) % Number.MAX_VALUE;
+            }
+
+            function removeOldColorPoints(radius, circleX, circleY) {
+                var lastIdToRemove;
+
+                $scope.colorAtPosition = $scope.colorAtPosition.filter(function (thatPoint) {
+                    var pointX = thatPoint.x;
+                    var pointY = thatPoint.y;
+
+                    // See: http://math.stackexchange.com/questions/198764/how-to-know-if-a-point-is-inside-a-circle
+                    var distanceInCircle = Math.sqrt(Math.pow(pointX - circleX, 2) +
+                        Math.pow(pointY - circleY, 2));
+
+                    var thatPointIsWithinCircle = distanceInCircle < radius;
+
+                    if (thatPointIsWithinCircle) {
+
+                        var isFromThisRound = Math.abs(thatPoint.id - $scope.nextRoundColorId) < 100;
+                        if (!isFromThisRound) {
+                            // if we hit a point from the last point
+                            // remember that point's id...
+                            lastIdToRemove = thatPoint.id;
+                        }
+                        return isFromThisRound
+                    } else {
+                        return true;
+                    }
+                });
+
+                if (lastIdToRemove) {
+                    // remove all points from an older round
+                    $scope.colorAtPosition = $scope.colorAtPosition.filter(function (eachPoint) {
+                        return lastIdToRemove < eachPoint.id;
+                    });
+                }
+            }
+
         };
 
 
