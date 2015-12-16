@@ -1,6 +1,7 @@
 package com.zuehlke.carrera.javapilot.websocket;
 
 import com.google.gson.Gson;
+import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
 import com.zuehlke.carrera.javapilot.websocket.data.EventMessageType;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
@@ -20,13 +21,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Websocket handler, which is here to expose some events coming for the java pilot to the web client.
- *
+ * <p>
  * Used with plain web socket, no STOMP wrapping.
- *
+ * <p>
  * Example ( used for debugging ) :
  * var ws = new WebSocket("ws://localhost:8089/pilotData")
  * ws.onmessage = function(e){
- *  console.log(e)
+ * console.log(e)
  * }
  *
  * @author Kirusanth Poopalasingam ( pkirusanth@gmail.com )
@@ -73,12 +74,16 @@ public class PilotDataEventSender extends TextWebSocketHandler {
             Gson gson = new Gson();
 
             JsonMessage jsonMessage =
-                    new JsonMessage(genericMessage, eventMessageType);
+                new JsonMessage(genericMessage, eventMessageType);
             String outputMessage = gson.toJson(jsonMessage);
 
             LOGGER.debug("Sending message to all {}", outputMessage);
-            for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
-                webSocketSession.sendMessage(new TextMessage(outputMessage));
+            synchronized (this) {
+                for (WebSocketSession webSocketSession : sessionIdToOpenSession.values()) {
+                    if (webSocketSession.isOpen()) {
+                        webSocketSession.sendMessage(new TextMessage(outputMessage));
+                    }
+                }
             }
         } catch (Exception e) {
             LOGGER.warn("Something went wrong - call chuck norris: ");
@@ -86,10 +91,15 @@ public class PilotDataEventSender extends TextWebSocketHandler {
     }
 
     public void sendToAll(RoundTimeMessage message) {
-        sendMessage(message,EventMessageType.LapCompleted);
+        sendMessage(message, EventMessageType.LapCompleted);
     }
 
-    public void sendToAll(TrackDesign trackDesign){
-        sendMessage(trackDesign,EventMessageType.trackInfo);
+    public void sendToAll(TrackDesign trackDesign) {
+        sendMessage(trackDesign, EventMessageType.trackInfo);
+    }
+
+    public void sendToAll(CurrentProcessingTrackPart currentProcessingTrackPart) {
+        LOGGER.info("=> Send ProcessingTrackPart");
+        sendMessage(currentProcessingTrackPart, EventMessageType.ProcessingTrackPart);
     }
 }

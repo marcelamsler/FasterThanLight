@@ -6,6 +6,7 @@ import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
+import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
+//**
+// TODO Kiru: Show where the car actually is - btw. where the car thinks he ist
 public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
@@ -49,7 +52,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
-        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
+        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
     }
 
     @Override
@@ -59,8 +62,9 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
         if (lastTrackPart != null) {
             if (learningMap.containsKey(lastTrackPart.id)) {
                 currentPower = learningMap.get(lastTrackPart.id);
+                pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastTrackPart));
             }
-        }else {
+        } else {
             currentPower = defaultPower;
         }
 
@@ -105,12 +109,12 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
         return analyzedTrackPart.getType() == currentTrackPart.getType()
-                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+            && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
         return racePowerDuration > constantPowerDuration * MAX_SLOWER_RATIO_OF_RACE_TRACKPART &&
-                racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
+            racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
     }
 
 
@@ -152,6 +156,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
                 LOGGER.info("=> Reduce Power Value {}", reducedPowerValue);
                 learningMap.put(trackPartId, reducedPowerValue);
             } else {
+                LOGGER.info("=> set to default value {}", defaultPowerBeforePenalty);
                 learningMap.put(beforePenaltyTrackPart.id, defaultPowerBeforePenalty);
             }
         }
@@ -162,11 +167,12 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
         if (roundWithoutPenalties) {
 
+            // TODO Kiru: what is the magic here? copy the map again to itself?
             for (UUID key : learningMap.keySet()) {
                 learningMap.put(key, learningMap.get(key));
             }
-            defaultPower += INCREASE_AFTER_PENALTY_FREE_ROUND ;
-            LOGGER.info("=> Increase Speed{}", defaultPower);
+            defaultPower += INCREASE_AFTER_PENALTY_FREE_ROUND;
+            LOGGER.info("=> Increase Speed {}", defaultPower);
         }
 
         roundWithoutPenalties = true;
