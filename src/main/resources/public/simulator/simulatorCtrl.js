@@ -423,7 +423,7 @@ angular.module('simulator')
             var isCrossingHorizontally = carPosX > x && carPosX < (x + width);
             var isCrossingVertically = carPosY > y && carPosY < (y + height);
             if(isCrossingHorizontally && isCrossingVertically){
-                $scope.recognizedTrack = [];
+                // $scope.recognizedTrack = [];
                 console.log("clear recognizedTracks");
             }
         };

@@ -23,7 +23,7 @@ import java.util.UUID;
 public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 2;
     private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.90;
     private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
     private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
@@ -58,11 +58,11 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     @Override
     public void handleSensorEvent(SensorEvent message, long lastTimestamp, long timestampDelayThreshold) {
         TrackPart lastTrackPart = findCurrentPositionInAnalyzedTrack();
+        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastTrackPart));
 
         if (lastTrackPart != null) {
             if (learningMap.containsKey(lastTrackPart.id)) {
                 currentPower = learningMap.get(lastTrackPart.id);
-                pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastTrackPart));
             }
         } else {
             currentPower = defaultPower;
@@ -148,7 +148,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     }
 
     private void ReduceSpeedForTrackPart(TrackPart beforePenaltyTrackPart) {
-
+        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(beforePenaltyTrackPart));
         if (beforePenaltyTrackPart != null) {
             UUID trackPartId = beforePenaltyTrackPart.id;
             if (learningMap.containsKey(trackPartId)) {
