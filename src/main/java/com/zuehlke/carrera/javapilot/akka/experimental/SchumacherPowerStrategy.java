@@ -50,7 +50,7 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
-        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize()));
+        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
     }
 
     @Override
