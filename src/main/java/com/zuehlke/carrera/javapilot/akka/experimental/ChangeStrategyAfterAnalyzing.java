@@ -50,8 +50,8 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         this.pilotDataEventSender = pilotDataEventSender;
         this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
-        // powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, trackAnalyzer, getSelf(), recognizedTrack);
-        powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
+        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, trackAnalyzer, getSelf(), recognizedTrack);
+        //powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
     }
 
     @Override
@@ -94,9 +94,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
 
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
         trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
-
-
-
 
         powerStrategy.getGzDiffHistory().currentStDev();
         double crazyValue = crazyPassFilter.smoothen(powerStrategy.getGzDiffHistory().currentStDev(),message.getTimeStamp());
