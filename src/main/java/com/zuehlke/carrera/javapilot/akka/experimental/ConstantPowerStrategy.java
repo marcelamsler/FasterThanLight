@@ -62,6 +62,8 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     }
 
     public void recognizeLap(TrackType trackType){
+        System.out.println(trackPatternAttempts.size());
+        System.out.println(trackPattern);
         Character trackCode = trackType.getCode();
         if(throwAwayParts > 0){
             --throwAwayParts;
