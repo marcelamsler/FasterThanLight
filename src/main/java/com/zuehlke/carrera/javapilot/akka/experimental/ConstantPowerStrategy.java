@@ -3,9 +3,7 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.model.Track;
-import com.zuehlke.carrera.javapilot.model.TrackPart;
-import com.zuehlke.carrera.javapilot.model.TrackType;
+import com.zuehlke.carrera.javapilot.model.*;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
@@ -14,6 +12,7 @@ import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
@@ -31,12 +30,12 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     private boolean firstRound  = true;
     private LowPassFilter lowPassFilter = new LowPassFilter(100);
     private LowPassFilter crazyPassFilter = new LowPassFilter(60);
-    private int throwAwayParts = 3;
-    private int startOffset = 2;
-    private LinkedList<TrackType> trackPattern;
-    private ListIterator<TrackType> trackPatternPosition;
-    private LinkedList<TrackType> trackFindingPattern;
-    private boolean findingStarted;
+
+    private int throwAwayParts = 0;
+    private int startOffset = 8;
+    private Pattern trackPattern;
+    private LinkedList<PatternAttempt> trackPatternAttempts;
+    boolean lapDetected = false;
 
     private double sum1 = 0.0;
     private double sum2 = 0.0;
@@ -48,8 +47,8 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(5);
         this.recognizedTrack = recognizedTrack;
-        this.trackPattern = new LinkedList<>();
-        this.trackFindingPattern = new LinkedList<>();
+        this.trackPatternAttempts = new LinkedList<>();
+        this.trackPattern = new Pattern();
     }
 
     @Override
@@ -58,56 +57,67 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
             recognizedTrack.addTrackPart(message.getPart());
         }
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
-        for (TrackType type : trackPattern){
-            System.out.println(type);
-        }
-        System.out.println("-------------------------------------");
-        TrackPart part = message.getPart();
+
+        recognizeLap(message.getPart().getType());
+    }
+
+    public void recognizeLap(TrackType trackType){
+        Character trackCode = trackType.getCode();
         if(throwAwayParts > 0){
             --throwAwayParts;
             System.out.println("throw away");
         }
         else{
             if(startOffset > 0){
-                trackPattern.addLast(part.getType());
+                trackPattern.push(trackCode);
                 --startOffset;
                 System.out.println("start offset");
             }
             else{
-                if(findingStarted){
-                    if(trackPatternPosition.hasNext()) {
-                        if(trackFindingPattern.getLast() != part.getType()) {
-                            trackFindingPattern.add(part.getType());
-                        }
-                        if (part.getType() != trackPatternPosition.next()){
-                            trackPattern.addAll(trackFindingPattern);
-                            trackFindingPattern.clear();
-                            findingStarted = false;
-                        }
-                    }
-                    else {
-                        System.out.println("Lap Detected");
-                        System.out.println("Lap Detected");
-                        System.out.println("Lap Detected");
-                        System.out.println("Lap Detected");
-                        System.out.println("Lap Detected");
-                    }
+                if(trackPattern.getFirstElement().equals(trackCode)){
+                    PatternAttempt attempt = new PatternAttempt();
+                    if(!trackPatternAttempts.isEmpty())
+                        trackPatternAttempts.getLast().makeDiff();
+                    trackPatternAttempts.add(attempt);
                 }
-                else if(trackPattern.getFirst() == part.getType()){
-                    findingStarted = true;
-                    trackPatternPosition = trackPattern.listIterator();
-                    trackPatternPosition.next();
-                    trackFindingPattern.add(part.getType());
-                    System.out.println("findingStarted");
+                if(trackPatternAttempts.isEmpty()){
+                    trackPattern.push(trackCode);
                 }
                 else {
-                    if(trackPattern.getLast() != part.getType()){
-                        trackPattern.addLast(part.getType());
+                    for (PatternAttempt attempt : trackPatternAttempts) {
+                        attempt.push(trackCode);
+                    }
+
+                    lapDetected = detectLap();
+
+                    if(lapDetected){
+                        System.out.println("LAAAAAAAAAAAAAAAAAP");
+                        trackPatternAttempts.clear();
+                        trackPattern.setComplete();
+                        lapDetected = false;
                     }
                 }
-
             }
         }
+    }
+
+    public boolean detectLap(){
+        while (!trackPatternAttempts.isEmpty()){
+            boolean patternMatches = trackPattern.match(trackPatternAttempts.getFirst());
+            boolean sameLength = trackPattern.length() == trackPatternAttempts.getFirst().length();
+
+            if(patternMatches && sameLength){
+                return true;
+            }
+            else if(patternMatches){
+                return false;
+            }
+            else{
+                PatternAttempt removedAttempt = trackPatternAttempts.poll();
+                trackPattern.push(removedAttempt.getDiff());
+            }
+        }
+        return false;
     }
 
     @Override
