@@ -2,6 +2,7 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
@@ -42,7 +43,7 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
 
 
-    public HamiltonPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
+    public HamiltonPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.sender = sender;
@@ -145,6 +146,11 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     @Override
     public int getCurrentPower() {
         return currentPower;
+    }
+
+    @Override
+    public void handleLapCompletedMessage(LapCompletedEvent message) {
+
     }
 
     private void ReduceSpeedForTrackPart(TrackPart beforePenaltyTrackPart) {

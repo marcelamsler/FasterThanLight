@@ -2,143 +2,62 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
+import com.zuehlke.carrera.javapilot.akka.events.LengthOfTrackComputedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.model.*;
-import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
-
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.ListIterator;
+import org.apache.commons.math3.stat.StatUtils;
 
 public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
     private int currentPower;
-    private int defaultPower = 110;
-    private ActorRef trackAnalyzer;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory ;
-    private Track<TrackPart> recognizedTrack;
     private final long maxRoundTime = 100000000;
-    private boolean firstRound  = true;
-    private LowPassFilter lowPassFilter = new LowPassFilter(100);
-    private LowPassFilter crazyPassFilter = new LowPassFilter(60);
+    private int numberOfLapsRequired = 2;  //should be >= 1
+    private boolean firstLap = true;
+    private double[] lapLengths = new double[numberOfLapsRequired];
 
-    private int throwAwayParts = 0;
-    private int startOffset = 8;
-    private Pattern trackPattern;
-    private LinkedList<PatternAttempt> trackPatternAttempts;
-    boolean lapDetected = false;
+    private double trackLength = 0.0;
 
-    private double sum1 = 0.0;
-    private double sum2 = 0.0;
-
-    public ConstantPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef trackAnalyzer, ActorRef sender, Track<TrackPart> recognizedTrack) {
+    public ConstantPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
-        this.trackAnalyzer = trackAnalyzer;
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(5);
-        this.recognizedTrack = recognizedTrack;
-        this.trackPatternAttempts = new LinkedList<>();
-        this.trackPattern = new Pattern();
     }
 
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-        if(!firstRound) {
-            recognizedTrack.addTrackPart(message.getPart());
-        }
+
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
-
-        recognizeLap(message.getPart().getType());
-    }
-
-    public void recognizeLap(TrackType trackType){
-        System.out.println(trackPatternAttempts.size());
-        System.out.println(trackPattern);
-        Character trackCode = trackType.getCode();
-        if(throwAwayParts > 0){
-            --throwAwayParts;
-            System.out.println("throw away");
-        }
-        else{
-            if(startOffset > 0){
-                trackPattern.push(trackCode);
-                --startOffset;
-                System.out.println("start offset");
-            }
-            else{
-                if(trackPattern.getFirstElement().equals(trackCode)){
-                    PatternAttempt attempt = new PatternAttempt();
-                    if(!trackPatternAttempts.isEmpty())
-                        trackPatternAttempts.getLast().makeDiff();
-                    trackPatternAttempts.add(attempt);
-                }
-                if(trackPatternAttempts.isEmpty()){
-                    trackPattern.push(trackCode);
-                }
-                else {
-                    for (PatternAttempt attempt : trackPatternAttempts) {
-                        attempt.push(trackCode);
-                    }
-
-                    lapDetected = detectLap();
-
-                    if(lapDetected){
-                        System.out.println("LAAAAAAAAAAAAAAAAAP");
-                        trackPatternAttempts.clear();
-                        trackPattern.setComplete();
-                        lapDetected = false;
-                    }
-                }
-            }
-        }
-    }
-
-    public boolean detectLap(){
-        while (!trackPatternAttempts.isEmpty()){
-            boolean patternMatches = trackPattern.match(trackPatternAttempts.getFirst());
-            boolean sameLength = trackPattern.length() == trackPatternAttempts.getFirst().length();
-
-            if(patternMatches && sameLength){
-                return true;
-            }
-            else if(patternMatches){
-                return false;
-            }
-            else{
-                PatternAttempt removedAttempt = trackPatternAttempts.poll();
-                trackPattern.push(removedAttempt.getDiff());
-            }
-        }
-        return false;
+        //trackAnalyzer.tell(message,sender);
     }
 
     @Override
     public void handleSensorEvent(final SensorEvent message, final long lastTimestamp, final long timestampDelayThreshold) {
 
-        sum1 += gzDiffHistory.currentStDev();
+        trackLength += gzDiffHistory.currentStDev();
 
         if (iAmStillStanding()) {
             increase(5);
             pilotActor.tell(new PowerAction(currentPower), sender);
-        } else {
-            currentPower = defaultPower;
-            pilotActor.tell(new PowerAction(currentPower), sender);
         }
+        pilotActor.tell(new PowerAction(currentPower), sender);
     }
 
     @Override
     public void handleRoundTime(RoundTimeMessage message) {
+
     }
+
 
     @Override
     public int increase(int val) {
@@ -157,11 +76,32 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     }
 
     @Override
+
     public void handlePenaltyMessage(PenaltyMessage message) {
-        sum1 -=300;
+        trackLength -=300;
     }
     @Override
     public int getCurrentPower() {
         return currentPower;
+    }
+
+    @Override
+    public void handleLapCompletedMessage(LapCompletedEvent message) {
+        if(!firstLap) {
+            if (numberOfLapsRequired > 0) {
+                System.out.println(numberOfLapsRequired);
+                lapLengths[numberOfLapsRequired-1] = trackLength;
+                --numberOfLapsRequired;
+            } else {
+                System.out.println(StatUtils.mean(lapLengths));
+                sender.tell(new LengthOfTrackComputedEvent(StatUtils.mean(lapLengths)),sender);
+            }
+        }
+        else{
+            System.out.println("firstLap");
+            firstLap = false;
+        }
+
+        trackLength = 0;
     }
 }

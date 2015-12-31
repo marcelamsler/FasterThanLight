@@ -1,5 +1,6 @@
 package com.zuehlke.carrera.javapilot.akka.experimental;
 
+import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
@@ -23,4 +24,6 @@ public interface PowerStrategyInterface {
     void handlePenaltyMessage(PenaltyMessage message);
 
     int getCurrentPower();
+
+    void handleLapCompletedMessage(LapCompletedEvent message);
 }

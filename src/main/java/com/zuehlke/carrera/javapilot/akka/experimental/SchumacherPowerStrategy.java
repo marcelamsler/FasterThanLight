@@ -2,6 +2,7 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 
 import akka.actor.ActorRef;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
+import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
@@ -176,5 +177,10 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
     @Override
     public int getCurrentPower() {
         return currentPower;
+    }
+
+    @Override
+    public void handleLapCompletedMessage(LapCompletedEvent message) {
+
     }
 }

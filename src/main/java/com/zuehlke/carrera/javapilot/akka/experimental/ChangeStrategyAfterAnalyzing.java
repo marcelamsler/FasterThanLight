@@ -4,10 +4,7 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import com.zuehlke.carrera.javapilot.akka.PowerAction;
-import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
+import com.zuehlke.carrera.javapilot.akka.events.*;
 import com.zuehlke.carrera.javapilot.model.AnalyzedTrackPart;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
@@ -24,20 +21,18 @@ import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     public static final int timestampDelayThreshold = 10;
     private final ActorRef pilotActor;
-    private final ActorRef trackPartRecognizer;
-    private final ActorRef trackAnalyzer;
+    private ActorRef trackPartRecognizer;
+    private ActorRef trackAnalyzer;
     private PilotDataEventSender pilotDataEventSender;
+    private double trackLength = 0.0;
 
     private long lastTimestamp = 0;
     private int currentPower = 20;
 
     private PowerStrategyInterface powerStrategy;
 
-    private Track<TrackPart> recognizedTrack = new Track<>();
-    private Track<AnalyzedTrackPart> analyzedTrack = new Track<>();
-
     private LowPassFilter lowPassFilter = new LowPassFilter(100);
-    private LowPassFilter crazyPassFilter = new LowPassFilter(150);
+
 
     public static Props props(ActorRef pilotActor, PilotDataEventSender pilotDataEventSender) {
         return Props.create(
@@ -50,7 +45,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         this.pilotDataEventSender = pilotDataEventSender;
         this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
-        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, trackAnalyzer, getSelf(), recognizedTrack);
+        powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
         //powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
     }
 
@@ -62,24 +57,23 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         } else if (message instanceof RaceStartMessage) {
             handleRaceStart();
         } else if (message instanceof TrackPartRecognizedEvent){
-            powerStrategy.handleTrackPartRecognized((TrackPartRecognizedEvent) message);
+            handleTrackPartRecognized((TrackPartRecognizedEvent) message);
         }else if (message instanceof RoundTimeMessage) {
             powerStrategy.handleRoundTime((RoundTimeMessage) message);
         } else if ( message instanceof PenaltyMessage) {
             powerStrategy.handlePenaltyMessage ( (PenaltyMessage) message );
-        }else if (message instanceof TrackAnalyzedEvent){
-            TrackAnalyzedEvent trackAnalyzedEvent = (TrackAnalyzedEvent) message;
-            analyzedTrack = trackAnalyzedEvent.getTrack();
-            System.out.println("analyzed");
-            handleTrackAnalyzed(trackAnalyzedEvent);
+        }else if (message instanceof LapCompletedEvent) {
+            powerStrategy.handleLapCompletedMessage((LapCompletedEvent) message);
+        }else if(message instanceof LengthOfTrackComputedEvent){
+            handleLengthOfTrackComputedEvent((LengthOfTrackComputedEvent) message);
         }
     }
 
-    public void handleTrackAnalyzed(TrackAnalyzedEvent message) {
-        Track<AnalyzedTrackPart> analyzedTrack = message.getTrack();
-        TrackDesign trackDesign = convertTrackForWebsocket(analyzedTrack);
-        pilotDataEventSender.sendToAll(trackDesign);
-//        powerStrategy = new SchumacherPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
+    private void handleLengthOfTrackComputedEvent(LengthOfTrackComputedEvent message) {
+        trackLength = message.getLength();
+        trackPartRecognizer = getContext().system().actorOf(StdDevTrackPartRecognizer.props(getSelf(),trackLength));
+        trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
+        powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
     }
 
     public void handleSensorEvent(SensorEvent message, long lastTimestamp, long timestampDelayThreshold) {
@@ -93,13 +87,9 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         powerStrategy.getGzDiffHistory().shift(gz);
 
         double smoothValue = lowPassFilter.smoothen(gz, message.getTimeStamp());
-        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz), getSelf());
+        trackPartRecognizer.tell(new SmoothedSensorInputEvent(smoothValue, gz, message.getTimeStamp()), getSelf());
 
-        powerStrategy.getGzDiffHistory().currentStDev();
-        double crazyValue = crazyPassFilter.smoothen(powerStrategy.getGzDiffHistory().currentStDev(),message.getTimeStamp());
-
-
-        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(crazyValue, powerStrategy.getCurrentPower());
+        SmoothedSensorData smoothedSensorData = new SmoothedSensorData(smoothValue, powerStrategy.getCurrentPower());
         pilotDataEventSender.sendToAll(smoothedSensorData);
 
         powerStrategy.handleSensorEvent(message, lastTimestamp, timestampDelayThreshold);
@@ -109,19 +99,9 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private void handleRaceStart() {
     }
 
-    private TrackDesign convertTrackForWebsocket(Track<AnalyzedTrackPart> track) {
-        TrackDesign trackDesign = new TrackDesign();
-
-        for(AnalyzedTrackPart analyzedTrackPart: track.getTrackParts()){
-            if (analyzedTrackPart.isStraight()){
-                trackDesign.straight(analyzedTrackPart.getLength());
-            }
-            else if(analyzedTrackPart.isCurve()){
-                trackDesign.curve(analyzedTrackPart.getRadius(),analyzedTrackPart.getAngle());
-            }
-        }
-        trackDesign.create();
-        return trackDesign;
+    private void handleTrackPartRecognized(TrackPartRecognizedEvent event){
+        powerStrategy.handleTrackPartRecognized(event);
+        trackAnalyzer.tell(event,getSelf());
     }
 
 }
