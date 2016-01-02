@@ -6,6 +6,7 @@ import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
+import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
 import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
@@ -19,9 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-//**
-// TODO Kiru: Show where the car actually is - btw. where the car thinks he ist
-public class HamiltonPowerStrategy implements PowerStrategyInterface {
+public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
     private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 2;
@@ -29,8 +28,10 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
     private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
     private static final int INCREASE_AFTER_PENALTY_FREE_ROUND = 8;
-
+    private static final int STRAIGHT_POWER = 255;
+    private static final int CURVE_POWER = 120;
     private PilotDataEventSender pilotDataEventSender;
+
     private ActorRef pilotActor;
     private int defaultPower = 140;
     private int defaultPowerBeforePenalty = 100;
@@ -40,15 +41,19 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
     private Track<TrackPart> currentTrack = new Track<>();
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
     boolean roundWithoutPenalties;
+    private final Track<TrackPart> analyzedTrack;
     private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
 
+    //TODO Calculate Gforce Limit
+    private int gForceLimit = 10000;
 
-    public HamiltonPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender) {
+
+    public VettelPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(4);
-
+        this.analyzedTrack = analyzedTrack;
     }
 
     @Override
@@ -59,35 +64,109 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleSensorEvent(SensorEvent message, long lastTimestamp, long timestampDelayThreshold) {
-        TrackPart lastTrackPart = findCurrentPositionInAnalyzedTrack();
-        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastTrackPart));
 
-        if (lastTrackPart != null) {
-            if (learningMap.containsKey(lastTrackPart.id)) {
-                currentPower = learningMap.get(lastTrackPart.id);
+        ArrayList<TrackPart> passedCombination = findCurrentlyPassedCombination();
+
+        TrackPart myPosition = findMyPosition(passedCombination);
+        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(myPosition));
+
+        if (myPosition != null) {
+            currentPower = tryTolookForward(myPosition);
+            currentPower = getLearnedPower(myPosition, currentPower);
+            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
+
+            if (currentPower == -1) {
+                currentPower = defaultPower;
             }
         } else {
             currentPower = defaultPower;
+            recordedCombinations.add(getLastTrackParts());
         }
 
         pilotActor.tell(new PowerAction(currentPower), sender);
     }
 
-    private TrackPart findCurrentPositionInAnalyzedTrack() {
-        ArrayList<TrackPart> lastTrackParts = currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE);
+    private int getPowerFromActualGForce(int gForce, int currentPower) {
+        if (gForce > gForceLimit) {
+            return 0;
+        } else {
+            return currentPower;
+        }
+    }
 
-        ArrayList<TrackPart> lastMatchingTrackParts = null;
-        if (lastTrackParts.size() == COUNT_OF_TRACKPARTS_TO_COMPARE) {
-            lastMatchingTrackParts = findTracksInRecordedCombinations(lastTrackParts);
+    private int tryTolookForward(TrackPart myPosition) {
+        ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
+
+        int indexOfMyPosition = analyzedTrackParts.indexOf(myPosition);
+
+        if (analyzedTrackParts.size() >= indexOfMyPosition + 1 && indexOfMyPosition > 0) {
+            TrackType typeOfNextTrackPart = analyzedTrackParts.get(indexOfMyPosition + 1).getType();
+
+            if (typeOfNextTrackPart == TrackType.STRAIGHT) {
+                return STRAIGHT_POWER;
+            } else {
+                return CURVE_POWER;
+            }
+        } else {
+            return -1;
+        }
+    }
+
+    private int getLearnedPower(TrackPart myPosition, int currentPower) {
+        if (learningMap.containsKey(myPosition.id)) {
+            return learningMap.get(myPosition.id);
+        } else {
+            return currentPower;
         }
 
+    }
 
-        if (lastMatchingTrackParts != null && !lastMatchingTrackParts.isEmpty()) {
-            return lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+    private TrackPart findMyPosition(ArrayList<TrackPart> passedCombination) {
+        if (passedCombination != null && !passedCombination.isEmpty()) {
+            return passedCombination.get(passedCombination.size() - 1);
         } else {
             return null;
         }
+    }
 
+    private ArrayList<TrackPart> findCurrentlyPassedCombination() {
+
+        ArrayList<TrackPart> lastMatchingTrackParts = null;
+
+        lastMatchingTrackParts = findTracksInRecordedCombinations(getLastTrackParts());
+
+        if (lastMatchingTrackParts == null) {
+            lastMatchingTrackParts = findTracksInAnalyzedTrack(getLastTrackParts());
+        }
+
+        return lastMatchingTrackParts;
+
+    }
+
+    private ArrayList<TrackPart> findTracksInAnalyzedTrack(ArrayList<TrackPart> lastTrackParts) {
+        ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
+
+        for (int i = 0; i < analyzedTrackParts.size(); i++) {
+            boolean patternMatches = true;
+            for (int j = 0; j < lastTrackParts.size(); j++) {
+                if (i + j < analyzedTrackParts.size() && !couldBeSameTrackPart(analyzedTrackParts.get(i + j), lastTrackParts.get(j))) {
+                    patternMatches = false;
+                    break;
+                }
+            }
+
+            if (patternMatches) {
+                LOGGER.info("=> found matching pattern of trackparts");
+                int indexOfLastWantedTrackPart = i + lastTrackParts.size();
+
+                if (indexOfLastWantedTrackPart > analyzedTrackParts.size()) {
+                    indexOfLastWantedTrackPart = analyzedTrackParts.size();
+                }
+                return new ArrayList<>(analyzedTrackParts.subList(i, indexOfLastWantedTrackPart));
+            }
+
+        }
+        return null;
     }
 
     private ArrayList<TrackPart> findTracksInRecordedCombinations(ArrayList<TrackPart> currentTrackParts) {
@@ -111,12 +190,12 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
         return analyzedTrackPart.getType() == currentTrackPart.getType()
-            && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
+                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
     }
 
     private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
         return racePowerDuration > constantPowerDuration * MAX_SLOWER_RATIO_OF_RACE_TRACKPART &&
-            racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
+                racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
     }
 
 
@@ -125,23 +204,43 @@ public class HamiltonPowerStrategy implements PowerStrategyInterface {
         roundWithoutPenalties = false;
         LOGGER.info("=> Handle penalty {}", message.toString());
 
-        ArrayList<TrackPart> lastTrackParts = currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE);
+        ArrayList<TrackPart> lastMatchingTrackParts = findCurrentlyPassedCombination();
 
-        ArrayList<TrackPart> lastMatchingTrackParts = findTracksInRecordedCombinations(lastTrackParts);
-
-        if ((lastMatchingTrackParts == null || lastMatchingTrackParts.isEmpty()) && lastTrackParts.size() > 0) {
-            recordedCombinations.add(lastTrackParts);
-            lastMatchingTrackParts = lastTrackParts;
+        if (notMatchedToExistingTrackparts(lastMatchingTrackParts)) {
+            recordedCombinations.add(getLastTrackParts());
+            lastMatchingTrackParts = getLastTrackParts();
         } else {
             LOGGER.info("=> found existing trackparts {}", message.toString());
         }
 
-        if (lastMatchingTrackParts.size() > 1) {
-            TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
-            ReduceSpeedForTrackPart(beforePenaltyTrackPart);
-            ReduceSpeedForTrackPart(lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 2));
-        }
+        reduceSpeed(lastMatchingTrackParts);
+    }
 
+    private void reduceSpeed(ArrayList<TrackPart> lastMatchingTrackParts) {
+
+        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1)));
+
+        if (lastMatchingTrackParts.size() > 0) {
+            TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
+            for (int i = lastMatchingTrackParts.size() - 1; i >= 0; i--) {
+                TrackPart trackPart = lastMatchingTrackParts.get(i);
+
+                if (!learningMap.containsKey(trackPart.id)) {
+                    learningMap.put(beforePenaltyTrackPart.id, 0);
+                    LOGGER.info("=> Reduce Power Value");
+                    return;
+                }
+            }
+
+        }
+    }
+
+    private boolean notMatchedToExistingTrackparts(ArrayList<TrackPart> lastMatchingTrackParts) {
+        return (lastMatchingTrackParts == null || lastMatchingTrackParts.isEmpty()) && getLastTrackParts().size() > 0;
+    }
+
+    private ArrayList<TrackPart> getLastTrackParts() {
+        return currentTrack.getLastTrackParts(COUNT_OF_TRACKPARTS_TO_COMPARE);
     }
 
     @Override

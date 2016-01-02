@@ -3,8 +3,6 @@ package com.zuehlke.carrera.javapilot.akka;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import com.zuehlke.carrera.javapilot.akka.experimental.ChangeStrategyAfterAnalyzing;
-import com.zuehlke.carrera.javapilot.akka.experimental.TrackAnalyzer;
-import com.zuehlke.carrera.javapilot.akka.experimental.TrackPartRecognizer;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 
 import java.util.HashMap;

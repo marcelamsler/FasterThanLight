@@ -3,11 +3,10 @@ package com.zuehlke.carrera.javapilot.akka.experimental;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
-import com.zuehlke.carrera.javapilot.akka.PowerAction;
-import com.zuehlke.carrera.javapilot.akka.events.*;
-import com.zuehlke.carrera.javapilot.model.AnalyzedTrackPart;
-import com.zuehlke.carrera.javapilot.model.Track;
-import com.zuehlke.carrera.javapilot.model.TrackPart;
+import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
+import com.zuehlke.carrera.javapilot.akka.events.LengthOfTrackComputedEvent;
+import com.zuehlke.carrera.javapilot.akka.events.SmoothedSensorInputEvent;
+import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
@@ -15,7 +14,6 @@ import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
-import com.zuehlke.carrera.simulator.model.racetrack.TrackDesign;
 
 @SuppressWarnings("Duplicates")
 public class ChangeStrategyAfterAnalyzing extends UntypedActor {
@@ -46,7 +44,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         this.trackPartRecognizer = getContext().system().actorOf(TrackPartRecognizer.props(getSelf()));
         this.trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
         powerStrategy = new ConstantPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
-        //powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf(), recognizedTrack);
     }
 
     @Override
@@ -65,7 +62,8 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         }else if (message instanceof LapCompletedEvent) {
             powerStrategy.handleLapCompletedMessage((LapCompletedEvent) message);
         }else if(message instanceof LengthOfTrackComputedEvent){
-            handleLengthOfTrackComputedEvent((LengthOfTrackComputedEvent) message);
+            LengthOfTrackComputedEvent m =  (LengthOfTrackComputedEvent) message;
+            handleLengthOfTrackComputedEvent(m);
         }
     }
 
@@ -73,7 +71,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         trackLength = message.getLength();
         trackPartRecognizer = getContext().system().actorOf(StdDevTrackPartRecognizer.props(getSelf(),trackLength));
         trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
-        powerStrategy = new HamiltonPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
+        powerStrategy = new VettelPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
     }
 
     public void handleSensorEvent(SensorEvent message, long lastTimestamp, long timestampDelayThreshold) {
