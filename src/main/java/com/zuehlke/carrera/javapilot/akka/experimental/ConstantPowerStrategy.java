@@ -86,11 +86,9 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     public void handleLapCompletedMessage(LapCompletedEvent message) {
         if(!firstLap) {
             if (numberOfLapsRequired > 0) {
-                System.out.println(numberOfLapsRequired);
                 lapLengths[numberOfLapsRequired-1] = trackLength;
                 --numberOfLapsRequired;
             } else {
-                System.out.println(StatUtils.mean(lapLengths));
                 sender.tell(new LengthOfTrackComputedEvent(StatUtils.mean(lapLengths)),sender);
             }
         }

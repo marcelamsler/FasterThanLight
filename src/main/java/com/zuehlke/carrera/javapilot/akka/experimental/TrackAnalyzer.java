@@ -5,11 +5,10 @@ import akka.actor.Props;
 import akka.actor.UntypedActor;
 import akka.japi.Creator;
 import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackAnalyzedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
-import com.zuehlke.carrera.javapilot.akka.events.TrackRecognizedEvent;
-import com.zuehlke.carrera.javapilot.model.*;
-import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
+import com.zuehlke.carrera.javapilot.model.Pattern;
+import com.zuehlke.carrera.javapilot.model.PatternAttempt;
+import com.zuehlke.carrera.javapilot.model.TrackType;
 
 import java.util.LinkedList;
 
@@ -56,8 +55,6 @@ public class TrackAnalyzer extends UntypedActor {
     }
 
     public void recognizeLap(TrackType trackType){
-        System.out.println(trackPatternAttempts.size());
-        System.out.println(trackPattern);
         Character trackCode = trackType.getCode();
         if(throwAwayParts > 0){
             --throwAwayParts;

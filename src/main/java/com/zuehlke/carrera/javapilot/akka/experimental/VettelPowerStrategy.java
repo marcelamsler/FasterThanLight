@@ -9,7 +9,6 @@ import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
-import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
@@ -23,11 +22,12 @@ import java.util.UUID;
 public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 40;
     private static final int STRAIGHT_POWER = 255;
-    private static final int CURVE_POWER = 120;
-    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 2;
-    private static final int BRAKE_POWER = 0;
+    private static final int TURN_POWER = 150;
+    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 15;
+    private static final int BRAKE_POWER = 3;
+    private static final int MAX_SPEED = 10;
     private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef pilotActor;
@@ -54,12 +54,12 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
         addToPreviousCombinations(message.getPart());
-        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
+//        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
     }
 
     private void addToPreviousCombinations(TrackPart trackPart) {
         if (recordedCombinations.size() > 0) {
-            for (int i = recordedCombinations.size() - 1; i > recordedCombinations.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i--) {
+            for (int i = recordedCombinations.size() - 1; i > 0; i--) {
                 ArrayList<TrackPart> previousCombination = recordedCombinations.get(i);
 
                 if (previousCombination.size() < COUNT_OF_TRACKPARTS_TO_COMPARE + COUNT_OF_FORWARD_LOOKING_TRACKPARTS) {
@@ -78,7 +78,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(myPosition));
 
         if (myPosition != null) {
-            currentPower = tryTolookForward(passedCombination);
+            currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination);
             currentPower = getLearnedPowerIfAvailable(myPosition, currentPower);
 //            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
 
@@ -107,23 +107,53 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
     }
 
-    private int tryTolookForward(ArrayList<TrackPart> recordedCombination) {
+    private int SetPowerAccordingToCurrentSpeedAndFutureTrackParts(ArrayList<TrackPart> recordedCombination) {
 
-        int indexOfMyPosition = recordedCombination.size() - (1 + COUNT_OF_FORWARD_LOOKING_TRACKPARTS);
+        if (recordedCombination.size() == COUNT_OF_TRACKPARTS_TO_COMPARE + COUNT_OF_FORWARD_LOOKING_TRACKPARTS) {
 
-        if (recordedCombination.size() > indexOfMyPosition + COUNT_OF_FORWARD_LOOKING_TRACKPARTS && indexOfMyPosition != -1) {
-            TrackType typeOfNextTrackPart = recordedCombination
-                    .get(indexOfMyPosition + 1)
-                    .getType();
-
-            if (typeOfNextTrackPart == TrackType.STRAIGHT) {
-                return STRAIGHT_POWER;
-            } else {
-                return BRAKE_POWER;
-            }
+            // speed is an number between 0 and 10
+            int currentSpeed = estimateCurrentSpeed(recordedCombination);
+            return estimatePossiblePower(recordedCombination, currentSpeed);
         } else {
             return -1;
         }
+    }
+
+    private int estimateCurrentSpeed(ArrayList<TrackPart> recordedCombination) {
+        int speed = 0;
+        int speedChangePerTrackPart = MAX_SPEED / COUNT_OF_TRACKPARTS_TO_COMPARE;
+
+        for (int i = 0; i < recordedCombination.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i++) {
+            if (recordedCombination.get(i).getType() == TrackType.STRAIGHT) {
+                speed += speedChangePerTrackPart;
+            } else {
+                speed -= speedChangePerTrackPart;
+            }
+        }
+
+        return speed;
+    }
+
+
+    private int estimatePossiblePower(ArrayList<TrackPart> recordedCombination, int currentSpeed) {
+        TrackType nextTrackPartType = recordedCombination.get(recordedCombination.size() - 1).getType();
+
+        boolean straightAhead = nextTrackPartType == TrackType.STRAIGHT;
+        boolean turnAhead = (nextTrackPartType == TrackType.LEFT || nextTrackPartType == TrackType.RIGHT);
+
+
+        if (straightAhead) {
+            return STRAIGHT_POWER;
+        } else if (turnAhead) {
+            if (currentSpeed > 5) {
+                return BRAKE_POWER;
+            } else {
+                return TURN_POWER;
+            }
+        } else {
+            return defaultPower;
+        }
+
     }
 
     private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentPower) {
@@ -191,12 +221,13 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1)));
 
         if (lastMatchingTrackParts.size() > 0) {
-            TrackPart beforePenaltyTrackPart = lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1);
-            for (int i = lastMatchingTrackParts.size() - 1; i >= 0; i--) {
+            int currentPositionIndex = lastMatchingTrackParts.size() - (1 + COUNT_OF_FORWARD_LOOKING_TRACKPARTS);
+
+            for (int i = currentPositionIndex; i >= 0; i--) {
                 TrackPart trackPart = lastMatchingTrackParts.get(i);
 
                 if (!learningMap.containsKey(trackPart.id)) {
-                    learningMap.put(beforePenaltyTrackPart.id, BRAKE_POWER);
+                    learningMap.put(trackPart.id, BRAKE_POWER);
                     LOGGER.info("=> Reduce Power Value");
                     return;
                 }
