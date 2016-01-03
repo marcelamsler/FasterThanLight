@@ -25,7 +25,6 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
     private double trackLength = 0.0;
 
     private long lastTimestamp = 0;
-    private int currentPower = 20;
 
     private PowerStrategyInterface powerStrategy;
 
@@ -62,8 +61,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
         }else if (message instanceof LapCompletedEvent) {
             powerStrategy.handleLapCompletedMessage((LapCompletedEvent) message);
         }else if(message instanceof LengthOfTrackComputedEvent){
-            LengthOfTrackComputedEvent m =  (LengthOfTrackComputedEvent) message;
-            handleLengthOfTrackComputedEvent(m);
+            handleLengthOfTrackComputedEvent((LengthOfTrackComputedEvent) message);
         }
     }
 

@@ -20,8 +20,7 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
     private int currentPower;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory ;
-    private final long maxRoundTime = 100000000;
-    private int numberOfLapsRequired = 2;  //should be >= 1
+    private int numberOfLapsRequired = 1;  //should be >= 1
     private boolean firstLap = true;
     private double[] lapLengths = new double[numberOfLapsRequired];
 
@@ -36,9 +35,7 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
-
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
-        //trackAnalyzer.tell(message,sender);
     }
 
     @Override

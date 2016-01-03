@@ -99,7 +99,6 @@ public class PilotDataEventSender extends TextWebSocketHandler {
     }
 
     public void sendToAll(CurrentProcessingTrackPart currentProcessingTrackPart) {
-        LOGGER.info("=> Send ProcessingTrackPart");
         sendMessage(currentProcessingTrackPart, EventMessageType.ProcessingTrackPart);
     }
 }

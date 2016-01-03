@@ -23,43 +23,50 @@ import java.util.UUID;
 public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 2;
-    private static final double REDUCE_SPEED_RATIO_AFTER_PENALTY = 0.90;
-    private static final double MAX_SLOWER_RATIO_OF_RACE_TRACKPART = 0.5;
-    private static final double MAX_FASTER_RATIO_OF_RACE_TRACKPART = 5.0;
-    private static final int INCREASE_AFTER_PENALTY_FREE_ROUND = 8;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 5;
     private static final int STRAIGHT_POWER = 255;
     private static final int CURVE_POWER = 120;
+    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 2;
+    private static final int BRAKE_POWER = 0;
     private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef pilotActor;
     private int defaultPower = 140;
-    private int defaultPowerBeforePenalty = 100;
     private int currentPower = defaultPower;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
     private Track<TrackPart> currentTrack = new Track<>();
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
-    boolean roundWithoutPenalties;
-    private final Track<TrackPart> analyzedTrack;
     private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
 
     //TODO Calculate Gforce Limit
     private int gForceLimit = 10000;
 
 
-    public VettelPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender, Track<TrackPart> analyzedTrack) {
+    public VettelPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender) {
         this.pilotDataEventSender = pilotDataEventSender;
         this.pilotActor = pilotActor;
         this.sender = sender;
         this.gzDiffHistory = new FloatingHistory(4);
-        this.analyzedTrack = analyzedTrack;
     }
 
     @Override
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
+        addToPreviousCombinations(message.getPart());
         pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
+    }
+
+    private void addToPreviousCombinations(TrackPart trackPart) {
+        if (recordedCombinations.size() > 0) {
+            for (int i = recordedCombinations.size() - 1; i > recordedCombinations.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i--) {
+                ArrayList<TrackPart> previousCombination = recordedCombinations.get(i);
+
+                if (previousCombination.size() < COUNT_OF_TRACKPARTS_TO_COMPARE + COUNT_OF_FORWARD_LOOKING_TRACKPARTS) {
+                    previousCombination.add(trackPart);
+                }
+            }
+        }
     }
 
     @Override
@@ -71,19 +78,25 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(myPosition));
 
         if (myPosition != null) {
-            currentPower = tryTolookForward(myPosition);
-            currentPower = getLearnedPower(myPosition, currentPower);
-            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
+            currentPower = tryTolookForward(passedCombination);
+            currentPower = getLearnedPowerIfAvailable(myPosition, currentPower);
+//            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
 
             if (currentPower == -1) {
                 currentPower = defaultPower;
             }
         } else {
             currentPower = defaultPower;
-            recordedCombinations.add(getLastTrackParts());
+            recordThisCombination();
         }
 
         pilotActor.tell(new PowerAction(currentPower), sender);
+    }
+
+    private void recordThisCombination() {
+        if (getLastTrackParts() != null && getLastTrackParts().size() == COUNT_OF_TRACKPARTS_TO_COMPARE) {
+            recordedCombinations.add(getLastTrackParts());
+        }
     }
 
     private int getPowerFromActualGForce(int gForce, int currentPower) {
@@ -94,85 +107,49 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
     }
 
-    private int tryTolookForward(TrackPart myPosition) {
-        ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
+    private int tryTolookForward(ArrayList<TrackPart> recordedCombination) {
 
-        int indexOfMyPosition = analyzedTrackParts.indexOf(myPosition);
+        int indexOfMyPosition = recordedCombination.size() - (1 + COUNT_OF_FORWARD_LOOKING_TRACKPARTS);
 
-        if (analyzedTrackParts.size() >= indexOfMyPosition + 1 && indexOfMyPosition > 0) {
-            TrackType typeOfNextTrackPart = analyzedTrackParts.get(indexOfMyPosition + 1).getType();
+        if (recordedCombination.size() > indexOfMyPosition + COUNT_OF_FORWARD_LOOKING_TRACKPARTS && indexOfMyPosition != -1) {
+            TrackType typeOfNextTrackPart = recordedCombination
+                    .get(indexOfMyPosition + 1)
+                    .getType();
 
             if (typeOfNextTrackPart == TrackType.STRAIGHT) {
                 return STRAIGHT_POWER;
             } else {
-                return CURVE_POWER;
+                return BRAKE_POWER;
             }
         } else {
             return -1;
         }
     }
 
-    private int getLearnedPower(TrackPart myPosition, int currentPower) {
+    private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentPower) {
         if (learningMap.containsKey(myPosition.id)) {
             return learningMap.get(myPosition.id);
         } else {
             return currentPower;
         }
-
     }
 
     private TrackPart findMyPosition(ArrayList<TrackPart> passedCombination) {
         if (passedCombination != null && !passedCombination.isEmpty()) {
-            return passedCombination.get(passedCombination.size() - 1);
+            return passedCombination.get(passedCombination.size() - (1 + COUNT_OF_FORWARD_LOOKING_TRACKPARTS));
         } else {
             return null;
         }
     }
 
     private ArrayList<TrackPart> findCurrentlyPassedCombination() {
-
-        ArrayList<TrackPart> lastMatchingTrackParts = null;
-
-        lastMatchingTrackParts = findTracksInRecordedCombinations(getLastTrackParts());
-
-        if (lastMatchingTrackParts == null) {
-            lastMatchingTrackParts = findTracksInAnalyzedTrack(getLastTrackParts());
-        }
-
-        return lastMatchingTrackParts;
-
-    }
-
-    private ArrayList<TrackPart> findTracksInAnalyzedTrack(ArrayList<TrackPart> lastTrackParts) {
-        ArrayList<TrackPart> analyzedTrackParts = analyzedTrack.getTrackParts();
-
-        for (int i = 0; i < analyzedTrackParts.size(); i++) {
-            boolean patternMatches = true;
-            for (int j = 0; j < lastTrackParts.size(); j++) {
-                if (i + j < analyzedTrackParts.size() && !couldBeSameTrackPart(analyzedTrackParts.get(i + j), lastTrackParts.get(j))) {
-                    patternMatches = false;
-                    break;
-                }
-            }
-
-            if (patternMatches) {
-                LOGGER.info("=> found matching pattern of trackparts");
-                int indexOfLastWantedTrackPart = i + lastTrackParts.size();
-
-                if (indexOfLastWantedTrackPart > analyzedTrackParts.size()) {
-                    indexOfLastWantedTrackPart = analyzedTrackParts.size();
-                }
-                return new ArrayList<>(analyzedTrackParts.subList(i, indexOfLastWantedTrackPart));
-            }
-
-        }
-        return null;
+        return findTracksInRecordedCombinations(getLastTrackParts());
     }
 
     private ArrayList<TrackPart> findTracksInRecordedCombinations(ArrayList<TrackPart> currentTrackParts) {
         for (ArrayList<TrackPart> combination : recordedCombinations) {
             boolean patternMatches = true;
-            for (int i = 0; i < combination.size(); i++) {
+            for (int i = 0; i < combination.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i++) {
                 if (!couldBeSameTrackPart(combination.get(i), currentTrackParts.get(i))) {
                     patternMatches = false;
                     break;
@@ -189,34 +166,27 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
-        return analyzedTrackPart.getType() == currentTrackPart.getType()
-                && hasAboutSameDuration(analyzedTrackPart.getSize(), currentTrackPart.getSize());
-    }
-
-    private boolean hasAboutSameDuration(long constantPowerDuration, long racePowerDuration) {
-        return racePowerDuration > constantPowerDuration * MAX_SLOWER_RATIO_OF_RACE_TRACKPART &&
-                racePowerDuration < constantPowerDuration * MAX_FASTER_RATIO_OF_RACE_TRACKPART;
+        return analyzedTrackPart.getType() == currentTrackPart.getType();
     }
 
 
     @Override
     public void handlePenaltyMessage(PenaltyMessage message) {
-        roundWithoutPenalties = false;
         LOGGER.info("=> Handle penalty {}", message.toString());
 
         ArrayList<TrackPart> lastMatchingTrackParts = findCurrentlyPassedCombination();
 
         if (notMatchedToExistingTrackparts(lastMatchingTrackParts)) {
-            recordedCombinations.add(getLastTrackParts());
+            recordThisCombination();
             lastMatchingTrackParts = getLastTrackParts();
         } else {
             LOGGER.info("=> found existing trackparts {}", message.toString());
         }
 
-        reduceSpeed(lastMatchingTrackParts);
+        learnReducedSpeedForATrackPart(lastMatchingTrackParts);
     }
 
-    private void reduceSpeed(ArrayList<TrackPart> lastMatchingTrackParts) {
+    private void learnReducedSpeedForATrackPart(ArrayList<TrackPart> lastMatchingTrackParts) {
 
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1)));
 
@@ -226,7 +196,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
                 TrackPart trackPart = lastMatchingTrackParts.get(i);
 
                 if (!learningMap.containsKey(trackPart.id)) {
-                    learningMap.put(beforePenaltyTrackPart.id, 0);
+                    learningMap.put(beforePenaltyTrackPart.id, BRAKE_POWER);
                     LOGGER.info("=> Reduce Power Value");
                     return;
                 }
@@ -253,36 +223,9 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     }
 
-    private void ReduceSpeedForTrackPart(TrackPart beforePenaltyTrackPart) {
-        pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(beforePenaltyTrackPart));
-        if (beforePenaltyTrackPart != null) {
-            UUID trackPartId = beforePenaltyTrackPart.id;
-            if (learningMap.containsKey(trackPartId)) {
-                int reducedPowerValue = (int) Math.round(learningMap.get(trackPartId) * REDUCE_SPEED_RATIO_AFTER_PENALTY);
-                LOGGER.info("=> Reduce Power Value {}", reducedPowerValue);
-                learningMap.put(trackPartId, reducedPowerValue);
-            } else {
-                LOGGER.info("=> set to default value {}", defaultPowerBeforePenalty);
-                learningMap.put(beforePenaltyTrackPart.id, defaultPowerBeforePenalty);
-            }
-        }
-    }
-
     @Override
     public void handleRoundTime(RoundTimeMessage message) {
 
-        if (roundWithoutPenalties) {
-
-            // TODO Kiru: what is the magic here? copy the map again to itself?
-            // No Idea why I needed that :-) Marcel
-            for (UUID key : learningMap.keySet()) {
-                learningMap.put(key, learningMap.get(key));
-            }
-            defaultPower += INCREASE_AFTER_PENALTY_FREE_ROUND;
-            LOGGER.info("=> Increase Speed {}", defaultPower);
-        }
-
-        roundWithoutPenalties = true;
     }
 
     @Override
