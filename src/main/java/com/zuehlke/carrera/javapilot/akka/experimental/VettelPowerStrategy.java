@@ -22,12 +22,13 @@ import java.util.UUID;
 public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 40;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 35;
     private static final int STRAIGHT_POWER = 255;
     private static final int TURN_POWER = 150;
-    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 15;
+    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 4;
     private static final int BRAKE_POWER = 3;
     private static final int MAX_SPEED = 10;
+    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 5 ;
     private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef pilotActor;
@@ -179,10 +180,15 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private ArrayList<TrackPart> findTracksInRecordedCombinations(ArrayList<TrackPart> currentTrackParts) {
         for (ArrayList<TrackPart> combination : recordedCombinations) {
             boolean patternMatches = true;
+            int wrongMatches = 0;
             for (int i = 0; i < combination.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i++) {
                 if (!couldBeSameTrackPart(combination.get(i), currentTrackParts.get(i))) {
-                    patternMatches = false;
-                    break;
+                    wrongMatches++;
+                    if (wrongMatches > COUNT_OF_TRACKPARTS_TO_COMPARE / 100 * FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT) {
+                        patternMatches = false;
+                        break;
+                    }
+
                 }
             }
 
