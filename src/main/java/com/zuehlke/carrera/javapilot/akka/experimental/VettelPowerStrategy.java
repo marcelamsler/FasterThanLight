@@ -22,13 +22,13 @@ import java.util.UUID;
 public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 35;
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 60;
     private static final int STRAIGHT_POWER = 255;
     private static final int TURN_POWER = 150;
-    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 4;
+    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 6;
     private static final int BRAKE_POWER = 3;
     private static final double MAX_SPEED = 10.0;
-    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 30 ;
+    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 20 ;
     private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef pilotActor;
@@ -82,6 +82,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
             // speed is an number between 0 and 10
             int currentSpeed = estimateCurrentSpeed(passedCombination);
+
             currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination, currentSpeed);
             currentPower = getLearnedPowerIfAvailable(myPosition, currentSpeed, currentPower);
 //            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
@@ -130,6 +131,10 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
             } else {
                 speed -= speedChangePerTrackPart;
             }
+        }
+
+        if ( iAmReallySlow()) {
+            speed -= 5;
         }
 
         return speed;
@@ -281,6 +286,8 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     public boolean iAmStillStanding() {
         return gzDiffHistory.currentStDev() < 3;
     }
+
+    public boolean iAmReallySlow() { return gzDiffHistory.currentStDev() < 5; }
 
     @Override
     public FloatingHistory getGzDiffHistory() {
