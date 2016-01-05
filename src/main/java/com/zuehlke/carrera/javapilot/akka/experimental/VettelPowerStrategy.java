@@ -27,8 +27,8 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private static final int TURN_POWER = 150;
     private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 4;
     private static final int BRAKE_POWER = 3;
-    private static final int MAX_SPEED = 10;
-    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 5 ;
+    private static final double MAX_SPEED = 10.0;
+    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 30 ;
     private PilotDataEventSender pilotDataEventSender;
 
     private ActorRef pilotActor;
@@ -79,8 +79,11 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(myPosition));
 
         if (myPosition != null) {
-            currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination);
-            currentPower = getLearnedPowerIfAvailable(myPosition, currentPower);
+
+            // speed is an number between 0 and 10
+            int currentSpeed = estimateCurrentSpeed(passedCombination);
+            currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination, currentSpeed);
+            currentPower = getLearnedPowerIfAvailable(myPosition, currentSpeed, currentPower);
 //            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
 
             if (currentPower == -1) {
@@ -108,12 +111,9 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
     }
 
-    private int SetPowerAccordingToCurrentSpeedAndFutureTrackParts(ArrayList<TrackPart> recordedCombination) {
+    private int SetPowerAccordingToCurrentSpeedAndFutureTrackParts(ArrayList<TrackPart> recordedCombination, int currentSpeed) {
 
         if (recordedCombination.size() == COUNT_OF_TRACKPARTS_TO_COMPARE + COUNT_OF_FORWARD_LOOKING_TRACKPARTS) {
-
-            // speed is an number between 0 and 10
-            int currentSpeed = estimateCurrentSpeed(recordedCombination);
             return estimatePossiblePower(recordedCombination, currentSpeed);
         } else {
             return -1;
@@ -122,7 +122,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private int estimateCurrentSpeed(ArrayList<TrackPart> recordedCombination) {
         int speed = 0;
-        int speedChangePerTrackPart = MAX_SPEED / COUNT_OF_TRACKPARTS_TO_COMPARE;
+        double speedChangePerTrackPart = MAX_SPEED / COUNT_OF_TRACKPARTS_TO_COMPARE;
 
         for (int i = 0; i < recordedCombination.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i++) {
             if (recordedCombination.get(i).getType() == TrackType.STRAIGHT) {
@@ -157,7 +157,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     }
 
-    private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentPower) {
+    private int getLearnedPowerIfAvailable(TrackPart myPosition,int currentSpeed, int currentPower) {
         if (learningMap.containsKey(myPosition.id)) {
             return learningMap.get(myPosition.id);
         } else {
@@ -178,27 +178,33 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     }
 
     private ArrayList<TrackPart> findTracksInRecordedCombinations(ArrayList<TrackPart> currentTrackParts) {
+
+        HashMap<Integer, ArrayList<TrackPart>> matchingCombinations = new HashMap<>();
+
         for (ArrayList<TrackPart> combination : recordedCombinations) {
             boolean patternMatches = true;
             int wrongMatches = 0;
             for (int i = 0; i < combination.size() - COUNT_OF_FORWARD_LOOKING_TRACKPARTS; i++) {
                 if (!couldBeSameTrackPart(combination.get(i), currentTrackParts.get(i))) {
                     wrongMatches++;
-                    if (wrongMatches > COUNT_OF_TRACKPARTS_TO_COMPARE / 100 * FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT) {
+                    if (wrongMatches > COUNT_OF_TRACKPARTS_TO_COMPARE / 100.0 * FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT) {
                         patternMatches = false;
-                        break;
                     }
-
                 }
             }
 
             if (patternMatches) {
-                return combination;
+                matchingCombinations.put(wrongMatches, combination);
             }
 
         }
 
-        return null;
+        if (!matchingCombinations.isEmpty()) {
+            LOGGER.info("=> Found matching Combinations {}", matchingCombinations.size());
+            return matchingCombinations.values().iterator().next();
+        } else {
+            return null;
+        }
     }
 
     private boolean couldBeSameTrackPart(TrackPart analyzedTrackPart, TrackPart currentTrackPart) {
