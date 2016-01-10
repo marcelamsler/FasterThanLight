@@ -10,10 +10,7 @@ import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.services.LowPassFilter;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.SmoothedSensorData;
-import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
-import com.zuehlke.carrera.relayapi.messages.RaceStartMessage;
-import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
-import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.relayapi.messages.*;
 
 @SuppressWarnings("Duplicates")
 public class ChangeStrategyAfterAnalyzing extends UntypedActor {
@@ -62,6 +59,8 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
             powerStrategy.handleLapCompletedMessage((LapCompletedEvent) message);
         }else if(message instanceof LengthOfTrackComputedEvent){
             handleLengthOfTrackComputedEvent((LengthOfTrackComputedEvent) message);
+        } else if (message instanceof VelocityMessage) {
+            powerStrategy.handleVelocityMessage((VelocityMessage) message);
         }
     }
 

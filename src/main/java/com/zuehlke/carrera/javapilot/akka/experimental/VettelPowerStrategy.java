@@ -12,6 +12,7 @@ import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.slf4j.Logger;
 
@@ -21,19 +22,22 @@ import java.util.UUID;
 
 public class VettelPowerStrategy implements PowerStrategyInterface {
 
-    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(HamiltonPowerStrategy.class);
-    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 60;
-    private static final int INCREASE_PER_SUCCESSFUL_ROUND = 20;
+    private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(VettelPowerStrategy.class);
+    private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 100;
+    private static final int INCREASE_PER_SUCCESSFUL_ROUND = 15;
     private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 2;
     private static final int BRAKE_POWER = 3;
     private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 10;
 
+    private static final int ACCELERATION_DURING_TURN = 15;
+    public static final double MAX_TURN_GFORCE_RATIO = 1.2;
+
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
-    private int defaultPower = 150;
+    private int defaultPower = 130;
     private int currentPower = defaultPower;
-    private int full_power = defaultPower;
-    private int turnPower = defaultPower - 30;
+    private int fullPower = defaultPower;
+    private int turnPower = defaultPower - 50;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
     private Track<TrackPart> currentTrack = new Track<>();
@@ -41,11 +45,9 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
     private boolean roundWithoutPenalties;
 
+
     private int currentSpeed = 0;
-    private int slowSpeed = 50;
-    //TODO Calculate Gforce Limit
-    private int gForceLimit = 2500;
-    private int gForceMin = 300;
+    private int slowSpeed = 0;
     private int lastPower = 0;
 
 
@@ -85,11 +87,11 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
         if (myPosition != null) {
             currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination, currentSpeed);
-            currentPower = getLearnedPowerIfAvailable(myPosition, currentSpeed, currentPower);
             if (currentPower == -1) {
                 currentPower = defaultPower;
             }
-            currentPower = adjustPowerBasedOnCurrentGForce(message.getG()[2], currentPower);
+            currentPower = adjustPowerBasedOnCurrentGForce(message.getG()[2], myPosition, currentPower);
+            currentPower = getLearnedPowerIfAvailable(myPosition, currentSpeed, currentPower);
         } else {
             currentPower = defaultPower;
             recordThisCombination();
@@ -116,26 +118,26 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
     }
 
-    private int adjustPowerBasedOnCurrentGForce(int gForce, int currentPower) {
-        if (gForce > gForceMin || gForce < -gForceMin) {
-            if (gForce > gForceLimit || gForce < -gForceLimit) {
-                return Double.valueOf(lastPower - 5).intValue();
+    private int adjustPowerBasedOnCurrentGForce(int gForce, TrackPart myPosition, int currentPower) {
+        if (myPosition.isCurve()) {
+            int gForceLimit = Double.valueOf(myPosition.getMax() * MAX_TURN_GFORCE_RATIO).intValue();
+            if (Math.abs(gForce) > gForceLimit) {
+                return Double.valueOf(addToPower(lastPower, -ACCELERATION_DURING_TURN)).intValue();
             } else {
-                return Double.valueOf(lastPower + 5).intValue();
+                return Double.valueOf(addToPower(lastPower, ACCELERATION_DURING_TURN)).intValue();
             }
 
         }
-
         return currentPower;
 
     }
 
     private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentSpeed, int currentPower) {
         if (learningMap.containsKey(myPosition.id)) {
-            if (!iAmReallySlow()) {
-                return learningMap.get(myPosition.id);
-            } else {
+            if (iAmReallySlow()) {
                 return defaultPower;
+            } else {
+                return learningMap.get(myPosition.id);
             }
         } else {
             return currentPower;
@@ -150,12 +152,12 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
 
         if (straightAhead) {
-            return full_power;
+            return fullPower;
         } else if (turnAhead) {
-            if (!iAmReallySlow()) {
-                return BRAKE_POWER;
-            } else {
+            if (iAmReallySlow()) {
                 return turnPower;
+            } else {
+                return BRAKE_POWER;
             }
         } else {
             return defaultPower;
@@ -198,7 +200,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
 
         if (!matchingCombinations.isEmpty()) {
-            LOGGER.info("=> Found matching Combinations {}", matchingCombinations.size());
+//            LOGGER.info("=> Found matching Combinations {}", matchingCombinations.size());
             return matchingCombinations.values().iterator().next();
         } else {
             return null;
@@ -263,18 +265,25 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     }
 
     @Override
+    public void handleVelocityMessage(VelocityMessage message) {
+        if (message.getVelocity() < 100 && slowSpeed < 50) {
+            slowSpeed += 5;
+            currentSpeed = 0;
+        }
+    }
+
+    @Override
     public void handleRoundTime(RoundTimeMessage message) {
 
         if (roundWithoutPenalties) {
-            if (full_power <= 255 - INCREASE_PER_SUCCESSFUL_ROUND) {
-                full_power += INCREASE_PER_SUCCESSFUL_ROUND;
-            }
-            if (turnPower <= 255 - INCREASE_PER_SUCCESSFUL_ROUND / 5) {
-                turnPower += INCREASE_PER_SUCCESSFUL_ROUND / 5;
-            }
-            ;
+
+            fullPower = addToPower(fullPower, INCREASE_PER_SUCCESSFUL_ROUND);
+
             LOGGER.info("=> Increase Speed {}", defaultPower);
         }
+
+
+        LOGGER.info("=> ROUND TIME {}", message.getRoundDuration());
 
         roundWithoutPenalties = true;
     }
@@ -283,6 +292,16 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     public int increase(int val) {
         currentPower = currentPower + val;
         return currentPower;
+    }
+
+    public int addToPower(int currentPower, int val) {
+        int newPower = currentPower + val;
+
+        if (newPower > 0 && newPower <= 255) {
+            return newPower;
+        } else {
+            return currentPower;
+        }
     }
 
     @Override
@@ -301,11 +320,11 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     public void updateCurrentSpeed(int currentPower) {
 
-        if (currentSpeed >= 0 && currentPower < full_power) {
+        if (currentSpeed >= 0 && currentPower < fullPower) {
             currentSpeed--;
         }
 
-        if (currentSpeed <= 100 && currentPower >= full_power) {
+        if (currentSpeed <= 100 && currentPower >= fullPower) {
             currentSpeed++;
         }
 

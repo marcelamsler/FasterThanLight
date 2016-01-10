@@ -11,6 +11,7 @@ import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.slf4j.Logger;
 
@@ -181,6 +182,11 @@ public class SchumacherPowerStrategy implements PowerStrategyInterface{
 
     @Override
     public void handleLapCompletedMessage(LapCompletedEvent message) {
+
+    }
+
+    @Override
+    public void handleVelocityMessage(VelocityMessage message) {
 
     }
 }

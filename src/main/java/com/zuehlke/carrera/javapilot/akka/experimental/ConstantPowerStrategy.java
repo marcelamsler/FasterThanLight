@@ -10,6 +10,7 @@ import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
+import com.zuehlke.carrera.relayapi.messages.VelocityMessage;
 import com.zuehlke.carrera.timeseries.FloatingHistory;
 import org.apache.commons.math3.stat.StatUtils;
 
@@ -97,5 +98,10 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
         }
         --numberOfLapsRequired;
         trackLength = 0;
+    }
+
+    @Override
+    public void handleVelocityMessage(VelocityMessage message) {
+        //Do nothing
     }
 }
