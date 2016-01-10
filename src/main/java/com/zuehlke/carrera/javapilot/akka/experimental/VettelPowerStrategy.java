@@ -27,10 +27,12 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private static final int INCREASE_PER_SUCCESSFUL_ROUND = 15;
     private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 2;
     private static final int BRAKE_POWER = 3;
-    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 10;
+    private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 20;
 
     private static final int ACCELERATION_DURING_TURN = 15;
     public static final double MAX_TURN_GFORCE_RATIO = 1.2;
+    private static final int MAX_STRAIGHT_POWER = 255;
+    private static final int MAX_TURN_POWER = 200 ;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
@@ -44,6 +46,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private HashMap<UUID, Integer> learningMap = new HashMap<>();
     private ArrayList<ArrayList<TrackPart>> recordedCombinations = new ArrayList<>();
     private boolean roundWithoutPenalties;
+    private double maxMeasuredSpeed = 0;
 
 
     private int currentSpeed = 0;
@@ -122,9 +125,9 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         if (myPosition.isCurve()) {
             int gForceLimit = Double.valueOf(myPosition.getMax() * MAX_TURN_GFORCE_RATIO).intValue();
             if (Math.abs(gForce) > gForceLimit) {
-                return Double.valueOf(addToPower(lastPower, -ACCELERATION_DURING_TURN)).intValue();
+                return Double.valueOf(addToPower(lastPower, -ACCELERATION_DURING_TURN, MAX_TURN_POWER)).intValue();
             } else {
-                return Double.valueOf(addToPower(lastPower, ACCELERATION_DURING_TURN)).intValue();
+                return Double.valueOf(addToPower(lastPower, ACCELERATION_DURING_TURN, MAX_TURN_POWER)).intValue();
             }
 
         }
@@ -266,10 +269,19 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     @Override
     public void handleVelocityMessage(VelocityMessage message) {
-        if (message.getVelocity() < 100 && slowSpeed < 50) {
+
+        if (message.getVelocity() > maxMeasuredSpeed) {
+            maxMeasuredSpeed = message.getVelocity();
+        }
+
+       if  (message.getVelocity() > maxMeasuredSpeed / 3 * 2 && currentSpeed < 100 - slowSpeed) {
+            currentSpeed += slowSpeed / 2;
+        } else if (message.getVelocity() < maxMeasuredSpeed / 3 && slowSpeed < 50) {
             slowSpeed += 5;
             currentSpeed = 0;
         }
+
+
     }
 
     @Override
@@ -277,9 +289,9 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
         if (roundWithoutPenalties) {
 
-            fullPower = addToPower(fullPower, INCREASE_PER_SUCCESSFUL_ROUND);
+            fullPower = addToPower(fullPower, INCREASE_PER_SUCCESSFUL_ROUND, MAX_STRAIGHT_POWER);
 
-            LOGGER.info("=> Increase Speed {}", defaultPower);
+            LOGGER.info("=> Increase Speed {}", fullPower);
         }
 
 
@@ -294,11 +306,13 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         return currentPower;
     }
 
-    public int addToPower(int currentPower, int val) {
-        int newPower = currentPower + val;
+    public int addToPower (int currentPower, int AddPower, int max) {
+        int newPower = currentPower + AddPower;
 
-        if (newPower > 0 && newPower <= 255) {
+        if (newPower > 0 && newPower <= max) {
             return newPower;
+        } else if (newPower > 0 && newPower > max) {
+            return max;
         } else {
             return currentPower;
         }
