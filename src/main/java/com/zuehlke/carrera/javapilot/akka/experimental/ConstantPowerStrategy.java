@@ -87,7 +87,6 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
         if(!firstLap) {
             if (numberOfLapsRequired > 0) {
                 lapLengths[numberOfLapsRequired-1] = trackLength;
-                --numberOfLapsRequired;
             } else {
                 sender.tell(new LengthOfTrackComputedEvent(StatUtils.mean(lapLengths)),sender);
             }
@@ -96,7 +95,7 @@ public class ConstantPowerStrategy implements PowerStrategyInterface {
             System.out.println("firstLap");
             firstLap = false;
         }
-
+        --numberOfLapsRequired;
         trackLength = 0;
     }
 }

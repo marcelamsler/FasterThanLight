@@ -67,6 +67,7 @@ public class ChangeStrategyAfterAnalyzing extends UntypedActor {
 
     private void handleLengthOfTrackComputedEvent(LengthOfTrackComputedEvent message) {
         trackLength = message.getLength();
+        System.out.println("Strategy Changed");
         trackPartRecognizer = getContext().system().actorOf(StdDevTrackPartRecognizer.props(getSelf(),trackLength));
         trackAnalyzer = getContext().system().actorOf(TrackAnalyzer.props(getSelf()));
         powerStrategy = new VettelPowerStrategy(pilotDataEventSender, pilotActor, getSelf());
