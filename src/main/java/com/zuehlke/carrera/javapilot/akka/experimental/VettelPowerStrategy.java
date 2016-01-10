@@ -42,8 +42,11 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     private boolean roundWithoutPenalties;
 
     private int currentSpeed = 0;
+    private int slowSpeed = 50;
     //TODO Calculate Gforce Limit
-    private int gForceLimit = 10000;
+    private int gForceLimit = 2500;
+    private int gForceMin = 300;
+    private int lastPower = 0;
 
 
     public VettelPowerStrategy(PilotDataEventSender pilotDataEventSender, ActorRef pilotActor, ActorRef sender) {
@@ -83,17 +86,17 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         if (myPosition != null) {
             currentPower = SetPowerAccordingToCurrentSpeedAndFutureTrackParts(passedCombination, currentSpeed);
             currentPower = getLearnedPowerIfAvailable(myPosition, currentSpeed, currentPower);
-//            currentPower = getPowerFromActualGForce(message.getG()[2], currentPower);
-
             if (currentPower == -1) {
                 currentPower = defaultPower;
             }
+            currentPower = adjustPowerBasedOnCurrentGForce(message.getG()[2], currentPower);
         } else {
             currentPower = defaultPower;
             recordThisCombination();
         }
 
         updateCurrentSpeed(currentPower);
+        lastPower = currentPower;
 
         pilotActor.tell(new PowerAction(currentPower), sender);
     }
@@ -104,20 +107,38 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         }
     }
 
-    private int getPowerFromActualGForce(int gForce, int currentPower) {
-        if (gForce > gForceLimit) {
-            return 0;
-        } else {
-            return currentPower;
-        }
-    }
-
     private int SetPowerAccordingToCurrentSpeedAndFutureTrackParts(ArrayList<TrackPart> recordedCombination, int currentSpeed) {
 
         if (recordedCombination.size() == COUNT_OF_TRACKPARTS_TO_COMPARE + COUNT_OF_FORWARD_LOOKING_TRACKPARTS) {
             return estimatePossiblePower(recordedCombination, currentSpeed);
         } else {
             return -1;
+        }
+    }
+
+    private int adjustPowerBasedOnCurrentGForce(int gForce, int currentPower) {
+        if (gForce > gForceMin || gForce < -gForceMin) {
+            if (gForce > gForceLimit || gForce < -gForceLimit) {
+                return Double.valueOf(lastPower - 5).intValue();
+            } else {
+                return Double.valueOf(lastPower + 5).intValue();
+            }
+
+        }
+
+        return currentPower;
+
+    }
+
+    private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentSpeed, int currentPower) {
+        if (learningMap.containsKey(myPosition.id)) {
+            if (!iAmReallySlow()) {
+                return learningMap.get(myPosition.id);
+            } else {
+                return defaultPower;
+            }
+        } else {
+            return currentPower;
         }
     }
 
@@ -131,7 +152,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         if (straightAhead) {
             return full_power;
         } else if (turnAhead) {
-            if (currentSpeed > 0) {
+            if (!iAmReallySlow()) {
                 return BRAKE_POWER;
             } else {
                 return turnPower;
@@ -140,18 +161,6 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
             return defaultPower;
         }
 
-    }
-
-    private int getLearnedPowerIfAvailable(TrackPart myPosition, int currentSpeed, int currentPower) {
-        if (learningMap.containsKey(myPosition.id)) {
-            if (currentSpeed > 0) {
-                return learningMap.get(myPosition.id);
-            } else {
-                return defaultPower;
-            }
-        } else {
-            return currentPower;
-        }
     }
 
     private TrackPart findMyPosition(ArrayList<TrackPart> passedCombination) {
@@ -282,7 +291,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     }
 
     public boolean iAmReallySlow() {
-        return gzDiffHistory.currentStDev() < 5;
+        return currentSpeed < slowSpeed;
     }
 
     @Override
