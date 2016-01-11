@@ -6,11 +6,16 @@ public class Pattern {
     private Character lastElement = null;
     private Character firstElement = null;
     private boolean isComplete = false;
+    private int tolerance = 0;
 
     public Pattern(){
         stringBuilder = new StringBuilder();
     }
 
+    public Pattern(int tolerance){
+        this.tolerance = tolerance;
+        stringBuilder = new StringBuilder();
+    }
     /**
      * Adds a character to the Pattern when the pattern is not marked as complete
      * @param element character to append to the Pattern
@@ -44,8 +49,22 @@ public class Pattern {
      * @return Whether the attempt is a match with the pattern
      */
     public boolean match(PatternAttempt attempt){
-        String subPattern = stringBuilder.substring(0,attempt.length());
-        return subPattern.matches(attempt.toString());
+        int allowedFaults = 0;
+        String attemptString = attempt.toString();
+        if(tolerance != 0){
+            allowedFaults = stringBuilder.length()/tolerance;
+        }
+        for(int x = 0; x < attempt.length();++x){
+            if(attemptString.charAt(x) != stringBuilder.charAt(x)){
+                if(allowedFaults > 0){
+                    allowedFaults--;
+                }
+                else {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public int length() {

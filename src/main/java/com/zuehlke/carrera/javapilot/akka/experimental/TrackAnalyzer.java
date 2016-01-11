@@ -26,7 +26,7 @@ public class TrackAnalyzer extends UntypedActor {
 
         this.receiver = receiver;
         this.trackPatternAttempts = new LinkedList<>();
-        this.trackPattern = new Pattern();
+        this.trackPattern = new Pattern(10);
         throwAwayParts = 0;
         startOffset = 8;
         startOffsetChar = null;
