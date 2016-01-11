@@ -234,7 +234,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
         pilotDataEventSender.sendToAll(new CurrentProcessingTrackPart(lastMatchingTrackParts.get(lastMatchingTrackParts.size() - 1)));
 
         if (lastMatchingTrackParts.size() > 0) {
-            int currentPositionIndex = lastMatchingTrackParts.size() - (1 + COUNT_OF_FORWARD_LOOKING_TRACKPARTS);
+            int currentPositionIndex = COUNT_OF_TRACKPARTS_TO_COMPARE - 1 ;
 
             for (int i = currentPositionIndex; i >= 0; i--) {
                 TrackPart trackPart = lastMatchingTrackParts.get(i);
