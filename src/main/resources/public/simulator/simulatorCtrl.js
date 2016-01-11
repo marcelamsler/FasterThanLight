@@ -424,6 +424,7 @@ angular.module('simulator')
             var isCrossingVertically = carPosY > y && carPosY < (y + height);
             if(isCrossingHorizontally && isCrossingVertically){
                 // $scope.recognizedTrack = [];
+                $scope.colorAtPosition = [];
                 console.log("clear recognizedTracks");
             }
         };
@@ -511,24 +512,6 @@ angular.module('simulator')
          */
         var drawPosition = function (ctx) {
 
-            /**
-             * Draw the car itself
-             */
-            if (angular.isDefined($scope.recentNews.position)) {
-                ctx.fillStyle = "#A04000";
-                // ctx.fillStyle = "rgb(" + $scope.recentNews.currentPower + " , 50, 50)";
-                var r = $scope.width / 2;
-                ctx.beginPath();
-                var posx = $scope.baseAnchor.x + $scope.recentNews.position.posX * $scope.scaleFactor;
-                var posy = $scope.baseAnchor.y + $scope.recentNews.position.posY * $scope.scaleFactor;
-                ctx.arc(posx, posy, r, 2 * Math.PI, false);
-                ctx.fill();
-
-                $scope.currentPosCarX = posx;
-                $scope.currentPosCarY = posy;
-
-                pushToColorAtPosition(posx, posy, r);
-            }
 
             $scope.colorAtPosition.forEach(function (colorAntPos) {
                 ctx.fillStyle = "rgb(0, " + colorAntPos.power + ",0)";
@@ -559,6 +542,7 @@ angular.module('simulator')
             addLegend("#f98b36", "RIGHT");
             addLegend("#dc2e07", "is processing");
 
+
             $scope.recognizedTrack.forEach(function (eachTrack) {
                 if (eachTrack.trackType == "STRAIGHT") {
                     ctx.fillStyle = "#9000a0";
@@ -572,15 +556,15 @@ angular.module('simulator')
                 if(eachTrack.isProcessingThis){
                     ctx.fillStyle = "#dc2e07";
                     r = $scope.width;
+                    ctx.beginPath();
+                    ctx.arc(eachTrack.posX, eachTrack.posY, r, 2 * Math.PI, false);
+                    ctx.fill();
                 }
 
-                ctx.beginPath();
-                ctx.arc(eachTrack.posX, eachTrack.posY, r, 2 * Math.PI, false);
-                ctx.fill();
             });
 
             function pushToColorAtPosition(circleX, circleY, radius) {
-                removeOldColorPoints(radius, circleX, circleY);
+                // removeOldColorPoints(radius, circleX, circleY);
 
                 // console.log("Before: " + before + " after: " + $scope.colorAtPosition.length + " nextID: " + $scope.nextRoundColorId);
                 $scope.colorAtPosition.push({
@@ -629,6 +613,25 @@ angular.module('simulator')
                 }
             }
 
+
+            /**
+             * Draw the car itself
+             */
+            if (angular.isDefined($scope.recentNews.position)) {
+                ctx.fillStyle = "#A04000";
+                // ctx.fillStyle = "rgb(" + $scope.recentNews.currentPower + " , 50, 50)";
+                var r = $scope.width / 2;
+                ctx.beginPath();
+                var posx = $scope.baseAnchor.x + $scope.recentNews.position.posX * $scope.scaleFactor;
+                var posy = $scope.baseAnchor.y + $scope.recentNews.position.posY * $scope.scaleFactor;
+                ctx.arc(posx, posy, r, 2 * Math.PI, false);
+                ctx.fill();
+
+                $scope.currentPosCarX = posx;
+                $scope.currentPosCarY = posy;
+
+                pushToColorAtPosition(posx, posy, r);
+            }
         };
 
 

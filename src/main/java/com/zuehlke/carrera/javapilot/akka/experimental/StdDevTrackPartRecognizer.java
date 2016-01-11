@@ -63,7 +63,7 @@ public class StdDevTrackPartRecognizer extends UntypedActor {
 
     private void handleSmoothedSensorInputEvent(SmoothedSensorInputEvent event) {
 
-        gzDiffHistory.shift(event.getRaw());
+        gzDiffHistory.shift(event.getValue());
 
         double crazyValue = crazyPassFilter.smoothen(gzDiffHistory.currentStDev(),event.getTimestamp());
         stdDevCounter += crazyValue;
