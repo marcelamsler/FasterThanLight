@@ -9,6 +9,7 @@ import com.zuehlke.carrera.javapilot.model.TrackPart;
 import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
+import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
@@ -65,7 +66,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
         addToPreviousCombinations(message.getPart());
-//        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
+        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
     }
 
     private void addToPreviousCombinations(TrackPart trackPart) {
