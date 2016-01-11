@@ -6,10 +6,8 @@ import com.zuehlke.carrera.javapilot.akka.events.LapCompletedEvent;
 import com.zuehlke.carrera.javapilot.akka.events.TrackPartRecognizedEvent;
 import com.zuehlke.carrera.javapilot.model.Track;
 import com.zuehlke.carrera.javapilot.model.TrackPart;
-import com.zuehlke.carrera.javapilot.model.TrackType;
 import com.zuehlke.carrera.javapilot.websocket.PilotDataEventSender;
 import com.zuehlke.carrera.javapilot.websocket.data.CurrentProcessingTrackPart;
-import com.zuehlke.carrera.javapilot.websocket.data.TrackPartChangedData;
 import com.zuehlke.carrera.relayapi.messages.PenaltyMessage;
 import com.zuehlke.carrera.relayapi.messages.RoundTimeMessage;
 import com.zuehlke.carrera.relayapi.messages.SensorEvent;
@@ -25,21 +23,21 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
 
     private static final Logger LOGGER = org.slf4j.LoggerFactory.getLogger(VettelPowerStrategy.class);
     private static final int COUNT_OF_TRACKPARTS_TO_COMPARE = 100;
-    private static final int INCREASE_PER_SUCCESSFUL_ROUND = 15;
-    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 4;
+    private static final int INCREASE_PER_SUCCESSFUL_ROUND = 10;
+    private static final int COUNT_OF_FORWARD_LOOKING_TRACKPARTS = 5;
     private static final int BRAKE_POWER = 1;
     private static final int FAILURE_TOLERANCE_FOR_TRACKPART_MATCHING_IN_PERCENT = 10;
 
     private static final int ACCELERATION_DURING_TURN = 15;
-    public static final double MAX_TURN_GFORCE_RATIO = 1.2;
+    public static final double MAX_TURN_GFORCE_RATIO = 1.0;
     private static final int MAX_STRAIGHT_POWER = 255;
-    private static final int MAX_TURN_POWER = 200 ;
+    private static final int MAX_TURN_POWER = 180 ;
 
     private PilotDataEventSender pilotDataEventSender;
     private ActorRef pilotActor;
     private int defaultPower = 130;
     private int currentPower = defaultPower;
-    private int fullPower = defaultPower + 10;
+    private int fullPower = defaultPower;
     private int turnPower = defaultPower - 50;
     private ActorRef sender;
     private FloatingHistory gzDiffHistory;
@@ -66,7 +64,7 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     public void handleTrackPartRecognized(TrackPartRecognizedEvent message) {
         currentTrack.addTrackPart(message.getPart());
         addToPreviousCombinations(message.getPart());
-        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
+//        pilotDataEventSender.sendToAll(new TrackPartChangedData(message.getPart().getType(), message.getPart().getSize(), message.getPart().id.toString()));
     }
 
     private void addToPreviousCombinations(TrackPart trackPart) {
@@ -151,11 +149,12 @@ public class VettelPowerStrategy implements PowerStrategyInterface {
     }
 
     private int estimatePossiblePower(ArrayList<TrackPart> recordedCombination, int currentSpeed) {
-        TrackType nextTrackPartType = recordedCombination.get(recordedCombination.size() - 1).getType();
+        TrackPart nextTrackPart = recordedCombination.get(recordedCombination.size() - 1);
 
-        boolean straightAhead = nextTrackPartType == TrackType.STRAIGHT;
-        boolean turnAhead = (nextTrackPartType == TrackType.LEFT || nextTrackPartType == TrackType.RIGHT);
 
+        boolean straightAhead = nextTrackPart.isStraight();
+//        boolean turnAhead = (nextTrackPartType == TrackType.LEFT || nextTrackPartType == TrackType.RIGHT);
+        boolean turnAhead = recordedCombination.stream().anyMatch( (trackPart -> trackPart.isCurve()));
 
         if (straightAhead) {
             return fullPower;
